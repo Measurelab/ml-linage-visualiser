@@ -40,7 +40,9 @@ npm run dev
 
 ## Data Structure
 
-The application expects CSV files in the `datasets` folder with the following structure:
+**Note:** CSV data files are not included in this repository for privacy reasons.
+
+The application expects CSV files in the `public/datasets` folder with the following structure:
 
 - **Digital Science Mapping Tables.csv**: Contains table metadata (ID, name, dataset, layer, type, etc.)
 - **Digital Science Mapping Table Lineage.csv**: Defines relationships between tables
