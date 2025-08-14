@@ -7,6 +7,7 @@ import Legend from './components/Legend';
 import ProjectTabs from './components/ProjectTabs';
 import ExcelUpload from './components/ExcelUpload';
 import DataUpload from './components/DataUpload';
+import DevLogin from './components/DevLogin';
 import { loadAndParseData } from './utils/dataParser';
 import { loadDataFromSupabaseProject, hasProjectData } from './services/lineageData';
 import { getAllProjects } from './services/projects';
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,14 @@ function App() {
   });
 
   useEffect(() => {
-    initializeApp();
+    // Check if already authenticated
+    const auth = localStorage.getItem('devAuth');
+    if (auth === 'true') {
+      setIsAuthenticated(true);
+      initializeApp();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -199,6 +208,16 @@ function App() {
       setSelectedTable(table);
     }
   };
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    initializeApp();
+  };
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <DevLogin onLogin={handleLogin} />;
+  }
 
   if (showUpload) {
     return (
