@@ -1,7 +1,12 @@
 import React from 'react';
-import { Dashboard, DashboardTable, ParsedData } from '../types';
-import { getTablesByDashboard } from '../utils/graphBuilder';
-import { ChartBarIcon, LinkIcon } from '@heroicons/react/24/outline';
+import { ParsedData } from '@/types';
+import { getTablesByDashboard } from '@/utils/graphBuilder';
+import { BarChart3, ExternalLink } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface DashboardViewProps {
   parsedData: ParsedData;
@@ -34,105 +39,119 @@ const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <ChartBarIcon className="h-5 w-5 flex-shrink-0" />
+    <Card className="h-full">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2">
+          <BarChart3 className="h-5 w-5" />
           Dashboards
-        </h2>
-        <p className="text-sm text-gray-500 mt-1">
+        </CardTitle>
+        <CardDescription>
           Click a dashboard to highlight its tables
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        {dashboards.map(dashboard => {
-          const tableCount = getTableCount(dashboard.id);
-          const isSelected = selectedDashboard === dashboard.id;
-          
-          return (
-            <div
-              key={dashboard.id}
-              className={`border rounded-lg p-3 cursor-pointer transition-all
-                ${isSelected 
-                  ? 'border-blue-500 bg-blue-50' 
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
-              onClick={() => handleDashboardClick(dashboard.id)}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="font-medium text-gray-900">
-                    {dashboard.name}
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {dashboard.id} • {tableCount} tables
-                  </p>
-                  {dashboard.businessArea && (
-                    <p className="text-xs text-gray-600 mt-1">
-                      {dashboard.businessArea}
-                    </p>
-                  )}
-                  {dashboard.owner && (
-                    <p className="text-xs text-gray-600">
-                      Owner: {dashboard.owner}
-                    </p>
-                  )}
-                </div>
-                {dashboard.link && (
-                  <a
-                    href={dashboard.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1 hover:bg-gray-200 rounded"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <LinkIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                  </a>
-                )}
-              </div>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <ScrollArea className="h-[calc(100vh-300px)]">
+          <div className="space-y-2 pr-3">
+            {dashboards.map(dashboard => {
+              const tableCount = getTableCount(dashboard.id);
+              const isSelected = selectedDashboard === dashboard.id;
               
-              {isSelected && tableCount > 0 && (
-                <div className="mt-3 pt-3 border-t border-blue-200">
-                  <p className="text-xs font-medium text-blue-700 mb-2">
-                    Connected Tables:
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {parsedData.dashboardTables
-                      .filter(dt => dt.dashboardId === dashboard.id)
-                      .slice(0, 10)
-                      .map(dt => (
-                        <span
-                          key={dt.tableId}
-                          className="inline-block px-2 py-1 text-xs bg-white border border-blue-300 rounded text-blue-700"
+              return (
+                <Card
+                  key={dashboard.id}
+                  className={cn(
+                    "cursor-pointer transition-all hover:shadow-md",
+                    isSelected && "ring-2 ring-primary bg-primary/5"
+                  )}
+                  onClick={() => handleDashboardClick(dashboard.id)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-sm truncate">
+                          {dashboard.name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {dashboard.id}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {tableCount} tables
+                          </Badge>
+                        </div>
+                        {dashboard.businessArea && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {dashboard.businessArea}
+                          </p>
+                        )}
+                        {dashboard.owner && (
+                          <p className="text-xs text-muted-foreground">
+                            Owner: {dashboard.owner}
+                          </p>
+                        )}
+                      </div>
+                      {dashboard.link && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(dashboard.link, '_blank');
+                          }}
                         >
-                          {dt.tableName || dt.tableId}
-                        </span>
-                      ))}
-                    {tableCount > 10 && (
-                      <span className="inline-block px-2 py-1 text-xs text-blue-600">
-                        +{tableCount - 10} more
-                      </span>
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {isSelected && tableCount > 0 && (
+                      <div className="mt-3 pt-3 border-t">
+                        <p className="text-xs font-medium mb-2">
+                          Connected tables:
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {parsedData.dashboardTables
+                            .filter(dt => dt.dashboardId === dashboard.id)
+                            .slice(0, 5)
+                            .map(dt => (
+                              <Badge
+                                key={dt.tableId}
+                                variant="outline"
+                                className="text-xs"
+                              >
+                                {dt.tableName || dt.tableId}
+                              </Badge>
+                            ))}
+                          {tableCount > 5 && (
+                            <Badge variant="secondary" className="text-xs">
+                              +{tableCount - 5} more
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </ScrollArea>
 
-      {selectedDashboard && (
-        <button
-          onClick={() => {
-            onDashboardSelect(null);
-            onTableHighlight(new Set());
-          }}
-          className="mt-4 w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 transition-colors"
-        >
-          Clear Selection
-        </button>
-      )}
-    </div>
+        {selectedDashboard && (
+          <Button
+            onClick={() => {
+              onDashboardSelect(null);
+              onTableHighlight(new Set());
+            }}
+            variant="outline"
+            className="w-full mt-3"
+          >
+            Clear selection
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

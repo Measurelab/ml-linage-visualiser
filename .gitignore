@@ -1,6 +1,5 @@
 # Data files
-datasets/
-*.csv
+
 
 # Dependencies
 node_modules/
