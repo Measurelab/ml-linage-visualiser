@@ -39,6 +39,7 @@ export interface GraphNode extends Table {
   y?: number;
   fx?: number;
   fy?: number;
+  connectionCount?: number;
 }
 
 export interface GraphLink {

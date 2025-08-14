@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dashboard, DashboardTable, ParsedData } from '@/types';
+import { ParsedData } from '@/types';
 import { getTablesByDashboard } from '@/utils/graphBuilder';
 import { BarChart3, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

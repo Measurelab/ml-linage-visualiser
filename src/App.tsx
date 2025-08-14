@@ -7,7 +7,7 @@ import Legend from './components/Legend';
 import { loadAndParseData } from './utils/dataParser';
 import { buildGraphData } from './utils/graphBuilder';
 import { ParsedData, FilterOptions, Table, GraphNode } from './types';
-import { Loader2 } from 'lucide-react';
+import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -18,6 +18,7 @@ function App() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [filters, setFilters] = useState<FilterOptions>({
     datasets: [],
     layers: [],
@@ -99,8 +100,9 @@ function App() {
     <div className="min-h-screen bg-background">
       <header className="bg-card shadow-sm border-b">
         <div className="px-6 py-4">
-          <h1 className="text-2xl font-semibold">
-            BigQuery lineage visualizer
+          <h1 className="text-xl font-medium">
+            <span className="text-foreground">BQ</span>{' '}
+            <span className="text-primary">blueprint</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {parsedData.tables.size} tables • {parsedData.lineages.length} connections • {parsedData.dashboards.size} dashboards
@@ -109,14 +111,32 @@ function App() {
       </header>
 
       <div className="flex h-[calc(100vh-80px)]">
-        <div className="w-[480px] bg-muted/10 border-r overflow-y-auto p-4 space-y-4">
-          <DashboardView
-            parsedData={parsedData}
-            selectedDashboard={selectedDashboard}
-            onDashboardSelect={setSelectedDashboard}
-            onTableHighlight={setHighlightedNodes}
-          />
-          <Legend />
+        <div className={`${sidebarCollapsed ? 'w-12' : 'w-[480px]'} bg-muted/10 border-r overflow-y-auto transition-all duration-300 ease-in-out relative`}>
+          {/* Toggle button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`absolute top-2 right-2 z-10 h-8 w-8 ${sidebarCollapsed ? 'bg-background/80 hover:bg-background shadow-sm' : ''}`}
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+          </Button>
+          
+          {!sidebarCollapsed && (
+            <div className="p-4 space-y-4">
+              <DashboardView
+                parsedData={parsedData}
+                selectedDashboard={selectedDashboard}
+                onDashboardSelect={setSelectedDashboard}
+                onTableHighlight={setHighlightedNodes}
+              />
+              <Legend />
+            </div>
+          )}
         </div>
 
         <div className="flex-1 flex flex-col">
@@ -133,6 +153,7 @@ function App() {
               data={graphData}
               onNodeClick={handleNodeClick}
               highlightedNodes={highlightedNodes}
+              focusedNodeId={selectedTable?.id}
             />
             
             {graphData.nodes.length === 0 && (

@@ -1,0 +1,86 @@
+Dashboard ID,Table ID,Dashboard_Name,Table_Name
+UCN0015,TBL001,BRM Report,usage_mau
+UCN0015,TBL002,BRM Report,sf_BRMPipeline
+UCN0015,TBL029,BRM Report,anaplan_recrev
+UCN0015,TBL032,BRM Report,sf_BRMNewUpsellOpps
+UCN0015,TBL034,BRM Report,BRMARRForewardLook (Query)
+UCN0015,TBL036,BRM Report,netsuite_arrPerAccount
+UCN0015,TBL039,BRM Report,sf_salesPerAccount
+UCN0015,TBL041,BRM Report,bi_lookerUsageHistory
+UCN0015,TBL042,BRM Report,sf_BRMCombined
+UCN0015,TBL049,BRM Report,arr_ARRGross
+UCN0015,TBL050,BRM Report,sf_BRMPipelineConfidence
+UCN0015,TBL040,BRM Report,Last Refreshed
+UCN0015,TBL051,BRM Report,sf_BRMCreatedPipeline
+UCN0011,TBL053,DA Client Success Report,UCN0011_DUPLICATES_CHECK
+UCN0011,TBL060,DA Client Success Report,SF_Opportunities
+UCN0011,TBL067,DA Client Success Report,SF_Activities_Completed
+UCN0011,TBL069,DA Client Success Report,Tiers
+UCN0011,TBL070,DA Client Success Report,JW_CHURN_query
+UCN0011,TBL052,DA Client Success Report,mixpanel_dimUsersvsSFSales
+UCN0011,TBL071,DA Client Success Report,Churn Tracking - 2024
+UCN0011,TBL040,DA Client Success Report,Last Refreshed
+UCN0011,TBL072,DA Client Success Report,SRAD
+UCN0011,TBL077,DA Client Success Report,SF_Accounts
+UCN0011,TBL041,DA Client Success Report,bi_lookerUsageHistory
+UCN0011,TBL080,DA Client Success Report,UCN0011
+UCN0011,TBL082,DA Client Success Report,sf_cases
+UCN0005,TBL087,Market Analysis Report,sf_segments
+UCN0005,TBL089,Market Analysis Report,sf_marketPublisher
+UCN0005,TBL091,Market Analysis Report,grants2
+UCN0005,TBL093,Market Analysis Report,sf_crossSellProfilesCat
+UCN0005,TBL094,Market Analysis Report,grid_govfund
+UCN0005,TBL100,Market Analysis Report,sf_crossSellCandidates
+UCN0005,TBL040,Market Analysis Report,Last Refreshed
+UCN0005,TBL041,Market Analysis Report,bi_lookerUsageHistory
+UCN0005,TBL102,Market Analysis Report,mixpanel_dimUsersGRIDvsSales
+UCN0005,TBL103,Market Analysis Report,sf_crossSellProfilesNum
+UCN0005,TBL104,Market Analysis Report,grid_academic
+UCN0005,TBL106,Market Analysis Report,grants10
+UCN0005,TBL107,Market Analysis Report,mixpanel_freeDimUserCounts
+UCN0005,TBL108,Market Analysis Report,grid_corppharm
+UCN0005,TBL110,Market Analysis Report,grid_all
+UCN0018,TBL111,Monthly B2B Marketing Performance,sf_SegmentFunnelSummary
+UCN0018,TBL112,Monthly B2B Marketing Performance,sf_LeadsbyMonth
+UCN0018,TBL113,Monthly B2B Marketing Performance,sf_KeyMetricsagainstPreviousYear
+UCN0018,TBL040,Monthly B2B Marketing Performance,Last Refreshed
+UCN0018,TBL114,Monthly B2B Marketing Performance,sf_OppsCreatedbyMonth
+UCN0018,TBL041,Monthly B2B Marketing Performance,bi_lookerUsageHistory
+UCN0001,TBL040,DS P&L Data,Last Refreshed
+UCN0001,TBL041,DS P&L Data,bi_lookerUsageHistory
+UCN0001,TBL115,DS P&L Data,gemini_appcounts
+UCN0001,TBL116,DS P&L Data,anaplan_EBITDAMTD
+UCN0001,,DS P&L Data,
+UCN0001,,DS P&L Data,
+UCN0001,,DS P&L Data,
+UCN0001,,DS P&L Data,
+UCN0001,,DS P&L Data,
+UCN0001,,DS P&L Data,
+UCN0001,,DS P&L Data,
+,,,
+,,,
+UCN0007,TBL125,Events ROI Analysis,Last Refreshed Concur
+UCN0007,TBL127,Events ROI Analysis,sf_IFIOpportunities
+UCN0007,TBL040,Events ROI Analysis,Last Refreshed
+UCN0007,TBL141,Events ROI Analysis,bi_lookerUsageHistory
+UCN0007,TBL144,Events ROI Analysis,Asana_events24
+UCN0007,TBL145,Events ROI Analysis,NoSFCampaign
+UCN0007,TBL146,Events ROI Analysis,UnmatchedTE
+UCN0007,TBL147,Events ROI Analysis,events_ROI
+UCN0007,TBL148,Events ROI Analysis,Last Refreshed Asana
+UCN0008,TBL149,IFI Claims Opps Report,sf_IFIOpportunities
+UCN0008,TBL152,IFI Claims Opps Report,sf_IFIOppStageChanges
+UCN0008,TBL155,IFI Claims Opps Report,bi_lookerUsageHistory
+UCN0008,TBL156,IFI Claims Opps Report,Last Refreshed
+UCN0008,TBL158,IFI Claims Opps Report,sf_IFIOpenOppValues
+UCN0008,TBL159,IFI Claims Opps Report,sf_IFICreatedOpps
+UCN0017,TBL161,Headcount & FTE Report,Last Refreshed
+UCN0017,TBL162,Headcount & FTE Report,eNPS
+UCN0017,TBL163,Headcount & FTE Report,bob_EmployeeHistoryBasic
+UCN0017,TBL169,Headcount & FTE Report,bi_lookerUsageHistory
+UCN0017,TBL170,Headcount & FTE Report,bob_EmployeeAllocations
+UCN0017,TBL173,Headcount & FTE Report,Last Refreshed (Latest)
+UCN0017,TBL175,Headcount & FTE Report,bob_one_ones
+UCN0017,TBL177,Headcount & FTE Report,gemini_appcounts
+UCN0017,TBL179,Headcount & FTE Report,Goals
+Asana D&A Client Success,TBL180,Asana D&A Client Success,

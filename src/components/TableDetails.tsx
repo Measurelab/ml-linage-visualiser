@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table, TableLineage, ParsedData } from '@/types';
+import { Table, ParsedData } from '@/types';
 import { getUpstreamTables, getDownstreamTables } from '@/utils/graphBuilder';
 import { ExternalLink, Clock } from 'lucide-react';
 import {

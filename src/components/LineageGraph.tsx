@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { GraphData, GraphNode, GraphLink, Table } from '../types';
+import { GraphData, GraphNode, GraphLink } from '../types';
 import { getLayerColor } from '../utils/graphBuilder';
 
 interface LineageGraphProps {
   data: GraphData;
   onNodeClick?: (node: GraphNode) => void;
   highlightedNodes?: Set<string>;
+  focusedNodeId?: string;
   width?: number;
   height?: number;
 }
@@ -15,11 +16,66 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   data,
   onNodeClick,
   highlightedNodes = new Set(),
+  focusedNodeId,
   width = window.innerWidth,
   height = window.innerHeight - 200
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+
+  // Function to calculate node size based on connection count
+  const getNodeRadius = (node: GraphNode): number => {
+    const baseRadius = 8;
+    const maxRadius = 20;
+    const minRadius = 6;
+    const connectionCount = node.connectionCount || 0;
+    
+    // Find the maximum connection count in the dataset for scaling
+    const maxConnections = Math.max(...data.nodes.map(n => n.connectionCount || 0));
+    
+    let radius;
+    if (maxConnections === 0) {
+      radius = baseRadius;
+    } else {
+      // Linear scaling based on connection count
+      const scale = (connectionCount / maxConnections);
+      radius = minRadius + (scale * (maxRadius - minRadius));
+    }
+    
+    // Add bonus for scheduled queries
+    if (node.isScheduledQuery) {
+      radius += 2;
+    }
+    
+    return Math.max(minRadius, Math.min(maxRadius, radius));
+  };
+
+  // Function to center the view on a specific node
+  const centerOnNode = (nodeId: string) => {
+    if (!svgRef.current || !zoomRef.current || !gRef.current) return;
+    
+    const svg = d3.select(svgRef.current);
+    const node = data.nodes.find(n => n.id === nodeId);
+    
+    if (!node || !node.x || !node.y) return;
+    
+    const svgRect = svgRef.current.getBoundingClientRect();
+    const centerX = svgRect.width / 2;
+    const centerY = svgRect.height / 2;
+    
+    const scale = 1.2; // Slight zoom in when focusing
+    const x = centerX - node.x * scale;
+    const y = centerY - node.y * scale;
+    
+    svg.transition()
+      .duration(750)
+      .call(
+        zoomRef.current.transform,
+        d3.zoomIdentity.translate(x, y).scale(scale)
+      );
+  };
 
   useEffect(() => {
     if (!svgRef.current || !data.nodes.length) return;
@@ -28,13 +84,15 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     svg.selectAll('*').remove();
 
     const g = svg.append('g');
+    gRef.current = g; // Store reference
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 4])
       .on('zoom', (event) => {
         g.attr('transform', event.transform);
       });
-
+    
+    zoomRef.current = zoom; // Store reference
     svg.call(zoom);
 
     const simulation = d3.forceSimulation<GraphNode>(data.nodes)
@@ -78,7 +136,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
         .on('end', dragended));
 
     node.append('circle')
-      .attr('r', d => d.isScheduledQuery ? 12 : 10)
+      .attr('r', d => getNodeRadius(d))
       .attr('fill', d => getLayerColor(d.layer))
       .attr('stroke', d => {
         if (selectedNode === d.id) return '#1f2937';
@@ -98,7 +156,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     if (data.nodes.some(d => d.isScheduledQuery)) {
       node.filter(d => d.isScheduledQuery)
         .append('circle')
-        .attr('r', 15)
+        .attr('r', d => getNodeRadius(d) + 3)
         .attr('fill', 'none')
         .attr('stroke', d => getLayerColor(d.layer))
         .attr('stroke-width', 1)
@@ -126,7 +184,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .style('font-size', '12px')
       .style('box-shadow', '0 2px 4px rgba(0,0,0,0.1)');
 
-    node.on('mouseover', function(event, d) {
+    node.on('mouseover', function(_event, d) {
       tooltip.style('visibility', 'visible')
         .html(`
           <strong>${d.name}</strong><br/>
@@ -145,7 +203,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     .on('mouseout', function() {
       tooltip.style('visibility', 'hidden');
     })
-    .on('click', function(event, d) {
+    .on('click', function(_event, d) {
       setSelectedNode(d.id);
       if (onNodeClick) {
         onNodeClick(d);
@@ -184,6 +242,18 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       tooltip.remove();
     };
   }, [data, highlightedNodes, selectedNode, onNodeClick, width, height]);
+
+  // Handle focusing on a specific node when focusedNodeId changes
+  useEffect(() => {
+    if (focusedNodeId) {
+      // Small delay to ensure the simulation has positioned the nodes
+      const timer = setTimeout(() => {
+        centerOnNode(focusedNodeId);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [focusedNodeId]);
 
   return (
     <div className="w-full h-full">

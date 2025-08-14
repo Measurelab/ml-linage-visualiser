@@ -2,7 +2,6 @@ import {
   Table, 
   TableLineage, 
   GraphNode, 
-  GraphLink, 
   GraphData, 
   ParsedData,
   FilterOptions 
@@ -29,8 +28,31 @@ export const buildGraphData = (
 
   const nodes = Array.from(filteredNodes.values());
   
+  // Calculate connection count for each node
+  const connectionCounts = new Map<string, number>();
+  
+  // Initialize all nodes with 0 connections
+  nodes.forEach(node => {
+    connectionCounts.set(node.id, 0);
+  });
+  
+  // Count connections (both incoming and outgoing)
+  filteredLinks.forEach(link => {
+    const sourceId = typeof link.source === 'string' ? link.source : (link.source as GraphNode).id;
+    const targetId = typeof link.target === 'string' ? link.target : (link.target as GraphNode).id;
+    
+    connectionCounts.set(sourceId, (connectionCounts.get(sourceId) || 0) + 1);
+    connectionCounts.set(targetId, (connectionCounts.get(targetId) || 0) + 1);
+  });
+  
+  // Add connection count to each node
+  const nodesWithConnections = nodes.map(node => ({
+    ...node,
+    connectionCount: connectionCounts.get(node.id) || 0
+  }));
+  
   return {
-    nodes,
+    nodes: nodesWithConnections,
     links: filteredLinks
   };
 };
