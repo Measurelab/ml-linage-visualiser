@@ -56,8 +56,8 @@ const TableDetails: React.FC<TableDetailsProps> = ({
 
   if (!table) return null;
 
-  const upstreamTables = getUpstreamTables(table.id, parsedData.lineages);
-  const downstreamTables = getDownstreamTables(table.id, parsedData.lineages);
+  const upstreamTables = getUpstreamTables(table.id, parsedData);
+  const downstreamTables = getDownstreamTables(table.id, parsedData);
 
   const loadColumns = async () => {
     if (!table) return;

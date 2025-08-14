@@ -1,6 +1,4 @@
 import { 
-  Table, 
-  TableLineage, 
   GraphNode, 
   GraphData, 
   ParsedData,
@@ -11,9 +9,9 @@ export const buildGraphData = (
   parsedData: ParsedData,
   filters?: Partial<FilterOptions>
 ): GraphData => {
-  const { tables, lineages } = parsedData;
+  const { lineages } = parsedData;
   
-  const filteredNodes = filterNodes(tables, filters);
+  const filteredNodes = filterNodes(parsedData, filters);
   const nodeIds = new Set(Array.from(filteredNodes.values()).map(n => n.id));
   
   const filteredLinks = lineages
@@ -58,10 +56,11 @@ export const buildGraphData = (
 };
 
 const filterNodes = (
-  tables: Map<string, Table>,
+  parsedData: ParsedData,
   filters?: Partial<FilterOptions>
 ): Map<string, GraphNode> => {
   const filteredNodes = new Map<string, GraphNode>();
+  const { tables } = parsedData;
   
   tables.forEach((table, id) => {
     let include = true;
@@ -91,6 +90,12 @@ const filterNodes = (
           table.dataset.toLowerCase().includes(searchLower)
         );
       }
+      
+      // Filter by selected dashboard - show only tables connected to this dashboard
+      if (filters.selectedDashboard) {
+        const tablesInDashboard = getTablesByDashboard(filters.selectedDashboard, parsedData);
+        include = include && tablesInDashboard.has(table.id);
+      }
     }
     
     if (include) {
@@ -101,7 +106,8 @@ const filterNodes = (
   return filteredNodes;
 };
 
-export const getTablesByDashboard = (
+// Get all tables directly connected to a dashboard
+export const getDirectTablesByDashboard = (
   dashboardId: string,
   parsedData: ParsedData
 ): Set<string> => {
@@ -116,67 +122,86 @@ export const getTablesByDashboard = (
   return tableIds;
 };
 
+// Get all upstream tables (sources) for a given table
 export const getUpstreamTables = (
   tableId: string,
-  lineages: TableLineage[],
-  maxDepth: number = -1
+  parsedData: ParsedData,
+  visited = new Set<string>()
 ): Set<string> => {
-  const upstream = new Set<string>();
-  const toVisit = [{ id: tableId, depth: 0 }];
-  const visited = new Set<string>();
+  const upstreamTables = new Set<string>();
   
-  while (toVisit.length > 0) {
-    const current = toVisit.shift()!;
-    
-    if (visited.has(current.id)) continue;
-    visited.add(current.id);
-    
-    if (current.id !== tableId) {
-      upstream.add(current.id);
-    }
-    
-    if (maxDepth === -1 || current.depth < maxDepth) {
-      lineages.forEach(lineage => {
-        if (lineage.targetTableId === current.id && !visited.has(lineage.sourceTableId)) {
-          toVisit.push({ id: lineage.sourceTableId, depth: current.depth + 1 });
-        }
-      });
-    }
+  if (visited.has(tableId)) {
+    return upstreamTables; // Avoid infinite loops
   }
+  visited.add(tableId);
   
-  return upstream;
+  // Find all tables that feed into this table
+  parsedData.lineages.forEach(lineage => {
+    if (lineage.targetTableId === tableId) {
+      upstreamTables.add(lineage.sourceTableId);
+      // Recursively get upstream tables of the source
+      const recursiveUpstream = getUpstreamTables(lineage.sourceTableId, parsedData, new Set(visited));
+      recursiveUpstream.forEach(id => upstreamTables.add(id));
+    }
+  });
+  
+  return upstreamTables;
 };
 
+// Get all downstream tables (targets) for a given table
 export const getDownstreamTables = (
   tableId: string,
-  lineages: TableLineage[],
-  maxDepth: number = -1
+  parsedData: ParsedData,
+  visited = new Set<string>()
 ): Set<string> => {
-  const downstream = new Set<string>();
-  const toVisit = [{ id: tableId, depth: 0 }];
-  const visited = new Set<string>();
+  const downstreamTables = new Set<string>();
   
-  while (toVisit.length > 0) {
-    const current = toVisit.shift()!;
-    
-    if (visited.has(current.id)) continue;
-    visited.add(current.id);
-    
-    if (current.id !== tableId) {
-      downstream.add(current.id);
-    }
-    
-    if (maxDepth === -1 || current.depth < maxDepth) {
-      lineages.forEach(lineage => {
-        if (lineage.sourceTableId === current.id && !visited.has(lineage.targetTableId)) {
-          toVisit.push({ id: lineage.targetTableId, depth: current.depth + 1 });
-        }
-      });
-    }
+  if (visited.has(tableId)) {
+    return downstreamTables; // Avoid infinite loops
   }
+  visited.add(tableId);
   
-  return downstream;
+  // Find all tables that this table feeds into
+  parsedData.lineages.forEach(lineage => {
+    if (lineage.sourceTableId === tableId) {
+      downstreamTables.add(lineage.targetTableId);
+      // Recursively get downstream tables of the target
+      const recursiveDownstream = getDownstreamTables(lineage.targetTableId, parsedData, new Set(visited));
+      recursiveDownstream.forEach(id => downstreamTables.add(id));
+    }
+  });
+  
+  return downstreamTables;
 };
+
+// Get all tables connected to a dashboard (direct + upstream + downstream)
+export const getTablesByDashboard = (
+  dashboardId: string,
+  parsedData: ParsedData
+): Set<string> => {
+  const allTableIds = new Set<string>();
+  
+  // Get directly connected tables
+  const directTables = getDirectTablesByDashboard(dashboardId, parsedData);
+  directTables.forEach(id => allTableIds.add(id));
+  
+  // For each directly connected table, get all upstream and downstream tables
+  directTables.forEach(tableId => {
+    // Add the table itself
+    allTableIds.add(tableId);
+    
+    // Get all upstream tables
+    const upstreamTables = getUpstreamTables(tableId, parsedData);
+    upstreamTables.forEach(id => allTableIds.add(id));
+    
+    // Get all downstream tables
+    const downstreamTables = getDownstreamTables(tableId, parsedData);
+    downstreamTables.forEach(id => allTableIds.add(id));
+  });
+  
+  return allTableIds;
+};
+
 
 export const getLayerColor = (layer: string): string => {
   switch (layer) {

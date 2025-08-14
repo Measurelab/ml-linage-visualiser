@@ -46,7 +46,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
           Dashboards
         </CardTitle>
         <CardDescription>
-          Click a dashboard to highlight its tables
+          Click a dashboard to show only its connected tables
         </CardDescription>
       </CardHeader>
       <CardContent className="p-4 pt-0">

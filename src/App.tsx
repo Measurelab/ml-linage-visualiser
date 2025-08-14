@@ -301,14 +301,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Project Tabs */}
-      {isSupabaseEnabled && (
-        <ProjectTabs
-          activeProject={activeProject}
-          onProjectSelect={handleProjectSelect}
-        />
-      )}
-      
       <header className="bg-card shadow-sm border-b">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
@@ -333,6 +325,16 @@ function App() {
             )}
           </div>
         </div>
+        
+        {/* Project Tabs */}
+        {isSupabaseEnabled && (
+          <div className="border-t">
+            <ProjectTabs
+              activeProject={activeProject}
+              onProjectSelect={handleProjectSelect}
+            />
+          </div>
+        )}
       </header>
 
       <div className="flex h-[calc(100vh-80px)]">
@@ -344,7 +346,14 @@ function App() {
               <DashboardView
                 parsedData={parsedData}
                 selectedDashboard={selectedDashboard}
-                onDashboardSelect={setSelectedDashboard}
+                onDashboardSelect={(dashboardId) => {
+                  setSelectedDashboard(dashboardId);
+                  // Update filters to include the selected dashboard
+                  setFilters(prev => ({
+                    ...prev,
+                    selectedDashboard: dashboardId || undefined
+                  }));
+                }}
                 onTableHighlight={setHighlightedNodes}
               />
             </div>
@@ -397,14 +406,18 @@ function App() {
                 <div className="text-center">
                   <p className="text-muted-foreground text-lg">No tables match the current filters</p>
                   <Button
-                    onClick={() => setFilters({
-                      datasets: [],
-                      layers: [],
-                      tableTypes: [],
-                      showScheduledOnly: false,
-                      searchTerm: '',
-                      selectedDashboard: undefined
-                    })}
+                    onClick={() => {
+                      setFilters({
+                        datasets: [],
+                        layers: [],
+                        tableTypes: [],
+                        showScheduledOnly: false,
+                        searchTerm: '',
+                        selectedDashboard: undefined
+                      });
+                      setSelectedDashboard(null);
+                      setHighlightedNodes(new Set());
+                    }}
                     variant="link"
                     className="mt-2"
                   >

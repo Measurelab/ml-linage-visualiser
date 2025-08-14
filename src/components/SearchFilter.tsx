@@ -70,6 +70,7 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     });
   };
 
+
   const clearFilters = () => {
     onFiltersChange({
       datasets: [],
@@ -86,7 +87,8 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     filters.layers.length > 0 ||
     filters.tableTypes.length > 0 ||
     filters.showScheduledOnly ||
-    filters.searchTerm !== '';
+    filters.searchTerm !== '' ||
+    !!filters.selectedDashboard;
 
   const getLayerVariant = (layer: LayerType): "default" | "success" | "info" | "warning" => {
     switch (layer) {
@@ -96,6 +98,7 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
       default: return 'default';
     }
   };
+
 
   return (
     <Card>
