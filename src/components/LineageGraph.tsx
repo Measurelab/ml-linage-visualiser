@@ -101,7 +101,6 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
 
     // Optimize simulation parameters based on dataset size
     const nodeCount = data.nodes.length;
-    const linkCount = data.links.length;
     
     // Scale forces based on dataset size
     const chargeStrength = nodeCount > 500 ? -150 : nodeCount > 200 ? -250 : -300;

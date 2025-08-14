@@ -55,8 +55,8 @@ export const parseExcelFile = async (file: File): Promise<ExcelParseResult> => {
             id: String(tableId).trim(),
             name: String(tableName).trim(),
             dataset: String(row['Dataset/CustomQuery'] || row.Dataset || row.dataset || '').trim(),
-            layer: (row.Layer || row.layer || 'Raw') as any,
-            tableType: (row.Table_Type || row.table_type || row.Type || 'Table') as any,
+            layer: row.Layer || row.layer || 'Raw',
+            tableType: row.Table_Type || row.table_type || row.Type || 'Table',
             isScheduledQuery: String(row['Scheduled Query'] || row.scheduled_query || '').toLowerCase() === 'yes',
             link: row.Link || row.link || undefined,
             description: row.Description || row.description || undefined
