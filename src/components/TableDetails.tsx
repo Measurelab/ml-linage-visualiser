@@ -54,7 +54,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
         </SheetHeader>
         
         <ScrollArea className="h-[calc(100vh-120px)] mt-6">
-          <div className="space-y-6 pr-4">
+          <div className="space-y-4 px-2">
             <div className="space-y-3">
               <div>
                 <span className="text-sm font-medium text-muted-foreground">Dataset</span>
@@ -121,7 +121,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                         className="cursor-pointer hover:shadow-sm transition-all"
                         onClick={() => onTableSelect(id)}
                       >
-                        <CardContent className="p-3">
+                        <CardContent className="p-2">
                           <div className="flex items-center justify-between">
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium truncate">{upTable.name}</p>
@@ -154,7 +154,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                         className="cursor-pointer hover:shadow-sm transition-all"
                         onClick={() => onTableSelect(id)}
                       >
-                        <CardContent className="p-3">
+                        <CardContent className="p-2">
                           <div className="flex items-center justify-between">
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium truncate">{downTable.name}</p>

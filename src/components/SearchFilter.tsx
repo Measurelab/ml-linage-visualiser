@@ -99,7 +99,7 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
 
   return (
     <Card>
-      <CardContent className="p-4">
+      <CardContent className="py-2 px-4">
         <div className="flex items-center gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
