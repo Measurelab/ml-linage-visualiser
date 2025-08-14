@@ -89,6 +89,14 @@ export interface CreateColumnRequest {
   description?: string;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UpdateColumnRequest {
   column_name?: string;
   data_type?: ColumnDataType;

@@ -45,10 +45,14 @@ export const parseLineageCSV = (csvContent: string): TableLineage[] => {
   });
 
   result.data.forEach((row: any) => {
-    if (row.Target_Table_ID && row.Source_Table_ID) {
+    // Handle different column name formats
+    const targetTableId = row.Target_Table_ID || row.datasets;
+    const sourceTableId = row.Source_Table_ID;
+    
+    if (targetTableId && sourceTableId) {
       lineages.push({
-        targetTableId: row.Target_Table_ID,
-        sourceTableId: row.Source_Table_ID,
+        targetTableId: targetTableId,
+        sourceTableId: sourceTableId,
         targetTableName: row.Target_Table_Name || '',
         sourceTableName: row.Source_Table_Name || ''
       });
