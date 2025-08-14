@@ -101,46 +101,32 @@ function App() {
       <header className="bg-card shadow-sm border-b">
         <div className="px-6 py-4">
           <h1 className="text-xl font-medium">
-            <span className="text-foreground">BQ</span>{' '}
-            <span className="text-primary">blueprint</span>
+            Digital Science
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {parsedData.tables.size} tables • {parsedData.lineages.length} connections • {parsedData.dashboards.size} dashboards
+            BigQuery project: ds-bi-gbq • {parsedData.tables.size} tables • {parsedData.lineages.length} connections • {parsedData.dashboards.size} dashboards
           </p>
         </div>
       </header>
 
       <div className="flex h-[calc(100vh-80px)]">
-        <div className={`${sidebarCollapsed ? 'w-12' : 'w-[480px]'} bg-muted/10 border-r overflow-y-auto transition-all duration-300 ease-in-out relative`}>
-          {/* Toggle button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`absolute top-2 right-2 z-10 h-8 w-8 ${sidebarCollapsed ? 'bg-background/80 hover:bg-background shadow-sm' : ''}`}
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" />
-            )}
-          </Button>
+        <div className={`${sidebarCollapsed ? 'w-12' : 'w-[480px]'} bg-muted/10 border-r overflow-y-auto transition-all duration-300 ease-in-out`}>
           
           {!sidebarCollapsed && (
             <div className="p-4 space-y-4">
+              <Legend />
               <DashboardView
                 parsedData={parsedData}
                 selectedDashboard={selectedDashboard}
                 onDashboardSelect={setSelectedDashboard}
                 onTableHighlight={setHighlightedNodes}
               />
-              <Legend />
             </div>
           )}
         </div>
 
         <div className="flex-1 flex flex-col">
-          <div className="p-4 bg-card border-b">
+          <div className="p-4 bg-card">
             <SearchFilter
               parsedData={parsedData}
               filters={filters}
@@ -149,6 +135,20 @@ function App() {
           </div>
 
           <div className="flex-1 relative bg-muted/5">
+            {/* Sidebar Toggle Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 left-4 z-20 h-10 w-10 bg-background/80 hover:bg-background shadow-md"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen className="h-5 w-5" />
+              ) : (
+                <PanelLeftClose className="h-5 w-5" />
+              )}
+            </Button>
+            
             <LineageGraph
               data={graphData}
               onNodeClick={handleNodeClick}

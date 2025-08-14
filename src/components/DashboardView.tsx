@@ -51,7 +51,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
       </CardHeader>
       <CardContent className="p-4 pt-0">
         <ScrollArea className="h-[calc(100vh-300px)]">
-          <div className="space-y-2 pr-3">
+          <div className="space-y-2 px-2">
             {dashboards.map(dashboard => {
               const tableCount = getTableCount(dashboard.id);
               const isSelected = selectedDashboard === dashboard.id;
@@ -65,7 +65,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                   )}
                   onClick={() => handleDashboardClick(dashboard.id)}
                 >
-                  <CardContent className="p-3">
+                  <CardContent className="p-2">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-sm truncate">
