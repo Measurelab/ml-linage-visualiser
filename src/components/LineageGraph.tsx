@@ -134,7 +134,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
           Dataset: ${d.dataset}<br/>
           Layer: ${d.layer}<br/>
           Type: ${d.tableType}<br/>
-          ${d.isScheduledQuery ? '<em>Scheduled Query</em><br/>' : ''}
+          ${d.isScheduledQuery ? '<em>Scheduled query</em><br/>' : ''}
           ${d.description ? `Description: ${d.description}` : ''}
         `);
     })
@@ -175,8 +175,8 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
 
     function dragended(event: any, d: GraphNode) {
       if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
+      d.fx = undefined;
+      d.fy = undefined;
     }
 
     return () => {
@@ -186,7 +186,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   }, [data, highlightedNodes, selectedNode, onNodeClick, width, height]);
 
   return (
-    <div className="w-full h-full bg-gray-50 rounded-lg shadow-inner">
+    <div className="w-full h-full">
       <svg
         ref={svgRef}
         width={width}

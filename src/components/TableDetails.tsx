@@ -1,11 +1,23 @@
 import React from 'react';
-import { Table, TableLineage, ParsedData } from '../types';
-import { getUpstreamTables, getDownstreamTables } from '../utils/graphBuilder';
-import { XMarkIcon, LinkIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { Table, TableLineage, ParsedData } from '@/types';
+import { getUpstreamTables, getDownstreamTables } from '@/utils/graphBuilder';
+import { ExternalLink, Clock } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface TableDetailsProps {
   table: Table | null;
   parsedData: ParsedData;
+  isOpen: boolean;
   onClose: () => void;
   onTableSelect: (tableId: string) => void;
 }
@@ -13,6 +25,7 @@ interface TableDetailsProps {
 const TableDetails: React.FC<TableDetailsProps> = ({
   table,
   parsedData,
+  isOpen,
   onClose,
   onTableSelect
 }) => {
@@ -23,152 +36,151 @@ const TableDetails: React.FC<TableDetailsProps> = ({
 
   const getTableById = (id: string) => parsedData.tables.get(id);
 
+  const getLayerVariant = (layer: string): "default" | "success" | "info" | "warning" => {
+    switch (layer) {
+      case 'Raw': return 'success';
+      case 'Inter': return 'info';
+      case 'Target': return 'warning';
+      default: return 'default';
+    }
+  };
+
   return (
-    <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl z-50 overflow-y-auto">
-      <div className="sticky top-0 bg-white border-b px-6 py-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">{table.name}</h2>
-            <p className="text-sm text-gray-500 mt-1">{table.id}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <XMarkIcon className="h-6 w-6 text-gray-500 flex-shrink-0" />
-          </button>
-        </div>
-      </div>
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent className="w-[600px] sm:w-[800px]">
+        <SheetHeader>
+          <SheetTitle>{table.name}</SheetTitle>
+          <SheetDescription>{table.id}</SheetDescription>
+        </SheetHeader>
+        
+        <ScrollArea className="h-[calc(100vh-120px)] mt-6">
+          <div className="space-y-6 pr-4">
+            <div className="space-y-3">
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">Dataset</span>
+                <p className="text-sm mt-1">{table.dataset}</p>
+              </div>
+              
+              <div className="flex gap-4">
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Layer</span>
+                  <div className="mt-1">
+                    <Badge variant={getLayerVariant(table.layer)}>
+                      {table.layer}
+                    </Badge>
+                  </div>
+                </div>
+                
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Type</span>
+                  <p className="text-sm mt-1">{table.tableType}</p>
+                </div>
+              </div>
 
-      <div className="px-6 py-4 space-y-6">
-        <div className="space-y-3">
-          <div>
-            <span className="text-sm font-medium text-gray-500">Dataset</span>
-            <p className="text-gray-900">{table.dataset}</p>
-          </div>
-          
-          <div className="flex gap-4">
-            <div>
-              <span className="text-sm font-medium text-gray-500">Layer</span>
-              <p className="text-gray-900">
-                <span className={`inline-block px-2 py-1 rounded text-xs font-medium text-white
-                  ${table.layer === 'Raw' ? 'bg-green-500' : 
-                    table.layer === 'Inter' ? 'bg-blue-500' : 'bg-amber-500'}`}>
-                  {table.layer}
-                </span>
-              </p>
-            </div>
-            
-            <div>
-              <span className="text-sm font-medium text-gray-500">Type</span>
-              <p className="text-gray-900">{table.tableType}</p>
-            </div>
-          </div>
+              {table.isScheduledQuery && (
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium text-primary">Scheduled query</span>
+                </div>
+              )}
 
-          {table.isScheduledQuery && (
-            <div className="flex items-center gap-2 text-purple-600">
-              <ClockIcon className="h-5 w-5 flex-shrink-0" />
-              <span className="text-sm font-medium">Scheduled Query</span>
-            </div>
-          )}
+              {table.description && (
+                <div>
+                  <span className="text-sm font-medium text-muted-foreground">Description</span>
+                  <p className="text-sm mt-1">{table.description}</p>
+                </div>
+              )}
 
-          {table.description && (
-            <div>
-              <span className="text-sm font-medium text-gray-500">Description</span>
-              <p className="text-gray-900 text-sm mt-1">{table.description}</p>
-            </div>
-          )}
-
-          {table.link && (
-            <div>
-              <a
-                href={table.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm"
-              >
-                <LinkIcon className="h-4 w-4 flex-shrink-0" />
-                View in BigQuery
-              </a>
-            </div>
-          )}
-        </div>
-
-        {upstreamTables.size > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">
-              Upstream Tables ({upstreamTables.size})
-            </h3>
-            <div className="space-y-1">
-              {Array.from(upstreamTables).map(id => {
-                const upTable = getTableById(id);
-                if (!upTable) return null;
-                return (
-                  <button
-                    key={id}
-                    onClick={() => onTableSelect(id)}
-                    className="w-full text-left px-3 py-2 rounded hover:bg-gray-50 transition-colors"
+              {table.link && (
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => window.open(table.link, '_blank')}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{upTable.name}</p>
-                        <p className="text-xs text-gray-500">{upTable.dataset}</p>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded
-                        ${upTable.layer === 'Raw' ? 'bg-green-100 text-green-700' :
-                          upTable.layer === 'Inter' ? 'bg-blue-100 text-blue-700' :
-                          'bg-amber-100 text-amber-700'}`}>
-                        {upTable.layer}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+                    <ExternalLink className="h-4 w-4" />
+                    View in BigQuery
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
-        )}
 
-        {downstreamTables.size > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">
-              Downstream Tables ({downstreamTables.size})
-            </h3>
-            <div className="space-y-1">
-              {Array.from(downstreamTables).map(id => {
-                const downTable = getTableById(id);
-                if (!downTable) return null;
-                return (
-                  <button
-                    key={id}
-                    onClick={() => onTableSelect(id)}
-                    className="w-full text-left px-3 py-2 rounded hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{downTable.name}</p>
-                        <p className="text-xs text-gray-500">{downTable.dataset}</p>
-                      </div>
-                      <span className={`text-xs px-2 py-1 rounded
-                        ${downTable.layer === 'Raw' ? 'bg-green-100 text-green-700' :
-                          downTable.layer === 'Inter' ? 'bg-blue-100 text-blue-700' :
-                          'bg-amber-100 text-amber-700'}`}>
-                        {downTable.layer}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+            {upstreamTables.size > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-3">
+                  Upstream tables ({upstreamTables.size})
+                </h3>
+                <div className="space-y-2">
+                  {Array.from(upstreamTables).map(id => {
+                    const upTable = getTableById(id);
+                    if (!upTable) return null;
+                    return (
+                      <Card
+                        key={id}
+                        className="cursor-pointer hover:shadow-sm transition-all"
+                        onClick={() => onTableSelect(id)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{upTable.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{upTable.dataset}</p>
+                            </div>
+                            <Badge variant={getLayerVariant(upTable.layer)} className="ml-2">
+                              {upTable.layer}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-        {upstreamTables.size === 0 && downstreamTables.size === 0 && (
-          <div className="text-center py-4 text-gray-500 text-sm">
-            No connected tables found
+            {downstreamTables.size > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-3">
+                  Downstream tables ({downstreamTables.size})
+                </h3>
+                <div className="space-y-2">
+                  {Array.from(downstreamTables).map(id => {
+                    const downTable = getTableById(id);
+                    if (!downTable) return null;
+                    return (
+                      <Card
+                        key={id}
+                        className="cursor-pointer hover:shadow-sm transition-all"
+                        onClick={() => onTableSelect(id)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium truncate">{downTable.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{downTable.dataset}</p>
+                            </div>
+                            <Badge variant={getLayerVariant(downTable.layer)} className="ml-2">
+                              {downTable.layer}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {upstreamTables.size === 0 && downstreamTables.size === 0 && (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                No connected tables found
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
   );
 };
 

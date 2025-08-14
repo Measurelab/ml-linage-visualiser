@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { FilterOptions, LayerType, TableType, ParsedData } from '../types';
+import { Search, Filter, X } from 'lucide-react';
+import { FilterOptions, LayerType, TableType, ParsedData } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 interface SearchFilterProps {
   parsedData: ParsedData;
@@ -82,125 +89,136 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     filters.showScheduledOnly ||
     filters.searchTerm !== '';
 
+  const getLayerVariant = (layer: LayerType): "default" | "success" | "info" | "warning" => {
+    switch (layer) {
+      case 'Raw': return 'success';
+      case 'Inter': return 'info';
+      case 'Target': return 'warning';
+      default: return 'default';
+    }
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4">
-      <div className="flex items-center gap-4">
-        <div className="flex-1 relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search tables by name, ID, or dataset..."
-            value={filters.searchTerm}
-            onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors
-            ${showFilters ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-        >
-          <FunnelIcon className="h-5 w-5 flex-shrink-0" />
-          Filters
-          {hasActiveFilters && (
-            <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
-              Active
-            </span>
-          )}
-        </button>
-
-        {hasActiveFilters && (
-          <button
-            onClick={clearFilters}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 flex items-center gap-2 transition-colors"
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search tables by name, ID, or dataset..."
+              value={filters.searchTerm}
+              onChange={handleSearchChange}
+              className="pl-10"
+            />
+          </div>
+          
+          <Button
+            onClick={() => setShowFilters(!showFilters)}
+            variant={showFilters ? 'default' : 'outline'}
+            className="gap-2"
           >
-            <XMarkIcon className="h-5 w-5 flex-shrink-0" />
-            Clear
-          </button>
-        )}
-      </div>
+            <Filter className="h-4 w-4" />
+            Filters
+            {hasActiveFilters && (
+              <Badge variant="destructive" className="ml-1 px-1.5 py-0.5 text-xs">
+                Active
+              </Badge>
+            )}
+          </Button>
 
-      {showFilters && (
-        <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Layers</h3>
-            <div className="flex gap-2">
-              {(['Raw', 'Inter', 'Target'] as LayerType[]).map(layer => (
-                <button
-                  key={layer}
-                  onClick={() => handleLayerToggle(layer)}
-                  className={`px-3 py-1 rounded-lg text-sm transition-colors
-                    ${filters.layers.includes(layer)
-                      ? layer === 'Raw' ? 'bg-green-500 text-white' :
-                        layer === 'Inter' ? 'bg-blue-500 text-white' :
-                        'bg-amber-500 text-white'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                >
-                  {layer}
-                </button>
-              ))}
-            </div>
-          </div>
+          {hasActiveFilters && (
+            <Button
+              onClick={clearFilters}
+              variant="outline"
+              className="gap-2"
+            >
+              <X className="h-4 w-4" />
+              Clear
+            </Button>
+          )}
+        </div>
 
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Table Types</h3>
-            <div className="flex gap-2">
-              {(['Table', 'View', 'Query', 'Sheet'] as TableType[]).map(type => (
-                <button
-                  key={type}
-                  onClick={() => handleTableTypeToggle(type)}
-                  className={`px-3 py-1 rounded-lg text-sm transition-colors
-                    ${filters.tableTypes.includes(type)
-                      ? 'bg-purple-500 text-white'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.showScheduledOnly}
-                onChange={(e) => onFiltersChange({
-                  ...filters,
-                  showScheduledOnly: e.target.checked
-                })}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Show scheduled queries only</span>
-            </label>
-          </div>
-
-          {availableDatasets.length > 0 && (
+        {showFilters && (
+          <div className="mt-4 pt-4 border-t space-y-4">
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Datasets</h3>
-              <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                <div className="grid grid-cols-2 gap-2">
-                  {availableDatasets.map(dataset => (
-                    <label key={dataset} className="flex items-center gap-2 cursor-pointer text-sm">
-                      <input
-                        type="checkbox"
-                        checked={filters.datasets.includes(dataset)}
-                        onChange={() => handleDatasetToggle(dataset)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-gray-700 truncate" title={dataset}>
-                        {dataset}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+              <h3 className="text-sm font-semibold mb-3">Layers</h3>
+              <div className="flex gap-2">
+                {(['Raw', 'Inter', 'Target'] as LayerType[]).map(layer => (
+                  <Button
+                    key={layer}
+                    onClick={() => handleLayerToggle(layer)}
+                    variant={filters.layers.includes(layer) ? getLayerVariant(layer) as any : 'outline'}
+                    size="sm"
+                  >
+                    {layer}
+                  </Button>
+                ))}
               </div>
             </div>
-          )}
-        </div>
-      )}
-    </div>
+
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Table types</h3>
+              <div className="flex gap-2">
+                {(['Table', 'View', 'Query', 'Sheet'] as TableType[]).map(type => (
+                  <Button
+                    key={type}
+                    onClick={() => handleTableTypeToggle(type)}
+                    variant={filters.tableTypes.includes(type) ? 'secondary' : 'outline'}
+                    size="sm"
+                  >
+                    {type}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="scheduled"
+                checked={filters.showScheduledOnly}
+                onCheckedChange={(checked) => onFiltersChange({
+                  ...filters,
+                  showScheduledOnly: checked as boolean
+                })}
+              />
+              <label
+                htmlFor="scheduled"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Show scheduled queries only
+              </label>
+            </div>
+
+            {availableDatasets.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-3">Datasets</h3>
+                <ScrollArea className="h-40 rounded-md border p-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {availableDatasets.map(dataset => (
+                      <div key={dataset} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={dataset}
+                          checked={filters.datasets.includes(dataset)}
+                          onCheckedChange={() => handleDatasetToggle(dataset)}
+                        />
+                        <label
+                          htmlFor={dataset}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 truncate"
+                          title={dataset}
+                        >
+                          {dataset}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

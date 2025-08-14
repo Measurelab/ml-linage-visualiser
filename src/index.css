@@ -1,6 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* Measurelab Theme - Light Mode */
+    --background: oklch(1.0000 0 0);
+    --foreground: oklch(0.1408 0.0044 285.8229);
+    --card: oklch(1.0000 0 0);
+    --card-foreground: oklch(0.1408 0.0044 285.8229);
+    --popover: oklch(1.0000 0 0);
+    --popover-foreground: oklch(0.1408 0.0044 285.8229);
+    --primary: oklch(0.7879 0.1991 139.5227);
+    --primary-foreground: oklch(0.9690 0.0568 140.4425);
+    --secondary: oklch(0.9579 0.0013 106.4242);
+    --secondary-foreground: oklch(0.2163 0.0435 230.7774);
+    --muted: oklch(0.9674 0.0013 286.3752);
+    --muted-foreground: oklch(0.3730 0.0340 259.7330);
+    --accent: oklch(0.9674 0.0013 286.3752);
+    --accent-foreground: oklch(0.2103 0.0059 285.8852);
+    --destructive: oklch(0.5830 0.2387 28.4765);
+    --destructive-foreground: oklch(1 0 0);
+    --border: oklch(0.9197 0.0040 286.3202);
+    --input: oklch(0.9197 0.0040 286.3202);
+    --ring: oklch(0.7879 0.1991 139.5227);
+    --radius: 0.625rem;
+    
+    /* Chart colors */
+    --chart-1: oklch(0.8710 0.1500 154.4490);
+    --chart-2: oklch(0.8650 0.1270 207.0780);
+    --chart-3: oklch(0.9050 0.1820 98.1110);
+    --chart-4: oklch(0.7690 0.1880 70.0800);
+    --chart-5: oklch(0.7400 0.2380 322.1600);
+    
+    /* Sidebar */
+    --sidebar: oklch(0.9851 0 0);
+    --sidebar-foreground: oklch(0.1408 0.0044 285.8229);
+    --sidebar-primary: oklch(0.7879 0.1991 139.5227);
+    --sidebar-primary-foreground: oklch(0.9819 0.0181 155.8263);
+    --sidebar-accent: oklch(0.9674 0.0013 286.3752);
+    --sidebar-accent-foreground: oklch(0.2103 0.0059 285.8852);
+    --sidebar-border: oklch(0.9197 0.0040 286.3202);
+    --sidebar-ring: oklch(0.7879 0.1991 139.5227);
+    
+    /* Typography */
+    --font-sans: "Poppins", sans-serif;
+    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --tracking-normal: 0em;
+    --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+    --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+    --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+    --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+    --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+    
+    /* Shadows */
+    --shadow-color: oklch(0 0 0);
+    --shadow-opacity: 0.1;
+    --shadow-blur: 3px;
+    --shadow-spread: 0px;
+    --shadow-offset-x: 0;
+    --shadow-offset-y: 1px;
+  }
+
+  .dark {
+    /* Measurelab Theme - Dark Mode */
+    --background: oklch(0.1408 0.0044 285.8229);
+    --foreground: oklch(0.9851 0 0);
+    --card: oklch(0.2103 0.0059 285.8852);
+    --card-foreground: oklch(0.9851 0 0);
+    --popover: oklch(0.2103 0.0059 285.8852);
+    --popover-foreground: oklch(0.9851 0 0);
+    --primary: oklch(0.7019 0.1577 160.4375);
+    --primary-foreground: oklch(0.3935 0.0957 152.2754);
+    --secondary: oklch(0.2739 0.0055 286.0326);
+    --secondary-foreground: oklch(0.9851 0 0);
+    --muted: oklch(0.2739 0.0055 286.0326);
+    --muted-foreground: oklch(0.7057 0.0144 286.0246);
+    --accent: oklch(0.2739 0.0055 286.0326);
+    --accent-foreground: oklch(0.9851 0 0);
+    --destructive: oklch(0.7022 0.1892 22.2279);
+    --destructive-foreground: oklch(0.9850 0 0);
+    --border: oklch(1.0000 0 0);
+    --input: oklch(1.0000 0 0);
+    --ring: oklch(0.5296 0.1495 148.9899);
+    
+    /* Chart colors - Dark */
+    --chart-1: oklch(0.4878 0.2432 264.4045);
+    --chart-2: oklch(0.7019 0.1577 160.4375);
+    --chart-3: oklch(0.7724 0.1728 65.3670);
+    --chart-4: oklch(0.6217 0.2589 305.3090);
+    --chart-5: oklch(0.6435 0.2452 16.5010);
+    
+    /* Sidebar - Dark */
+    --sidebar: oklch(0.2103 0.0059 285.8852);
+    --sidebar-foreground: oklch(0.9851 0 0);
+    --sidebar-primary: oklch(0.7019 0.1577 160.4375);
+    --sidebar-primary-foreground: oklch(0.3935 0.0957 152.2754);
+    --sidebar-accent: oklch(0.2739 0.0055 286.0326);
+    --sidebar-accent-foreground: oklch(0.9851 0 0);
+    --sidebar-border: oklch(1.0000 0 0);
+    --sidebar-ring: oklch(0.5296 0.1495 148.9899);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-sans;
+    letter-spacing: var(--tracking-normal);
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans font-semibold;
+  }
+}
 
 .tooltip {
   z-index: 1000;
