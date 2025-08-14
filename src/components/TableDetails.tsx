@@ -1,7 +1,12 @@
-import React from 'react';
-import { Table, ParsedData } from '@/types';
+import React, { useState, useEffect } from 'react';
+import { Table, ParsedData, Column, CreateColumnRequest } from '@/types';
 import { getUpstreamTables, getDownstreamTables } from '@/utils/graphBuilder';
-import { ExternalLink, Clock } from 'lucide-react';
+import { getTableColumns, createColumn, deleteColumn, createBulkColumns } from '@/services/columns';
+import { isSupabaseEnabled } from '@/services/supabase';
+import { ExternalLink, Clock, Plus, Database, Upload } from 'lucide-react';
+import ColumnList from './ColumnList';
+import AddColumnModal from './AddColumnModal';
+import UploadSchemaModal from './UploadSchemaModal';
 import {
   Sheet,
   SheetContent,
@@ -29,10 +34,78 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   onClose,
   onTableSelect
 }) => {
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [columnsLoading, setColumnsLoading] = useState(false);
+  const [showAddColumn, setShowAddColumn] = useState(false);
+  const [showUploadSchema, setShowUploadSchema] = useState(false);
+
+  // Load columns when table changes
+  useEffect(() => {
+    if (isSupabaseEnabled && table) {
+      loadColumns();
+    }
+  }, [table?.id]);
+
+  // Add error boundary for this component
+  useEffect(() => {
+    console.log('TableDetails component mounted/updated', { 
+      tableId: table?.id, 
+      supabaseEnabled: isSupabaseEnabled 
+    });
+  }, [table?.id]);
+
   if (!table) return null;
 
   const upstreamTables = getUpstreamTables(table.id, parsedData.lineages);
   const downstreamTables = getDownstreamTables(table.id, parsedData.lineages);
+
+  const loadColumns = async () => {
+    if (!table) return;
+    
+    setColumnsLoading(true);
+    try {
+      const tableColumns = await getTableColumns(table.id);
+      setColumns(tableColumns);
+    } catch (error) {
+      console.error('Error loading columns:', error);
+    } finally {
+      setColumnsLoading(false);
+    }
+  };
+
+  const handleAddColumn = async (columnData: CreateColumnRequest) => {
+    try {
+      const newColumn = await createColumn(columnData);
+      if (newColumn) {
+        setColumns([...columns, newColumn]);
+      }
+    } catch (error) {
+      console.error('Error creating column:', error);
+      throw error; // Re-throw to let modal handle the error
+    }
+  };
+
+  const handleDeleteColumn = async (column: Column) => {
+    if (window.confirm(`Are you sure you want to delete column "${column.column_name}"?`)) {
+      try {
+        await deleteColumn(column.id);
+        setColumns(columns.filter(c => c.id !== column.id));
+      } catch (error) {
+        console.error('Error deleting column:', error);
+        alert('Failed to delete column. Please try again.');
+      }
+    }
+  };
+
+  const handleBulkUpload = async (columnRequests: CreateColumnRequest[]) => {
+    try {
+      const newColumns = await createBulkColumns(columnRequests);
+      setColumns([...columns, ...newColumns]);
+    } catch (error) {
+      console.error('Error creating bulk columns:', error);
+      throw error; // Re-throw to let modal handle the error
+    }
+  };
 
   const getTableById = (id: string) => parsedData.tables.get(id);
 
@@ -105,6 +178,42 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Columns Section */}
+            {isSupabaseEnabled && (
+              <div>
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Database className="h-4 w-4" />
+                    Columns ({columns.length})
+                  </h3>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={() => setShowAddColumn(true)}
+                      size="sm"
+                      className="gap-2 w-full"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Column
+                    </Button>
+                    <Button
+                      onClick={() => setShowUploadSchema(true)}
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 w-full"
+                    >
+                      <Upload className="h-3 w-3" />
+                      Upload Schema
+                    </Button>
+                  </div>
+                </div>
+                <ColumnList
+                  columns={columns}
+                  loading={columnsLoading}
+                  onDeleteColumn={handleDeleteColumn}
+                />
+              </div>
+            )}
 
             {upstreamTables.size > 0 && (
               <div>
@@ -180,6 +289,28 @@ const TableDetails: React.FC<TableDetailsProps> = ({
           </div>
         </ScrollArea>
       </SheetContent>
+
+      {/* Add Column Modal */}
+      {isSupabaseEnabled && (
+        <AddColumnModal
+          isOpen={showAddColumn}
+          onClose={() => setShowAddColumn(false)}
+          onSubmit={handleAddColumn}
+          tableId={table.id}
+          tableName={table.name}
+        />
+      )}
+
+      {/* Upload Schema Modal */}
+      {isSupabaseEnabled && (
+        <UploadSchemaModal
+          isOpen={showUploadSchema}
+          onClose={() => setShowUploadSchema(false)}
+          onSubmit={handleBulkUpload}
+          tableId={table.id}
+          tableName={table.name}
+        />
+      )}
     </Sheet>
   );
 };

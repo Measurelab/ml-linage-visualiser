@@ -59,8 +59,9 @@ Uses official Measurelab design system:
 2. **Dashboard Integration**: Click dashboards to highlight dependent tables
 3. **Advanced Filtering**: By dataset, layer, table type, scheduled queries
 4. **Table Details**: Sheet panel showing upstream/downstream relationships
-5. **Search**: Real-time table search by name/ID/dataset
-6. **Responsive Design**: Sidebar (384px) + main content area
+5. **Column Management**: Add, edit, and view table column schemas (requires Supabase)
+6. **Search**: Real-time table search by name/ID/dataset
+7. **Responsive Design**: Sidebar (384px) + main content area
 
 ## Development Commands
 - `npm run dev` - Start Vite dev server (port 3000)
@@ -100,8 +101,16 @@ Uses official Measurelab design system:
 - **Color space**: OKLCH (never HSL)
 - **Shadows**: Use shadow-xs and defined shadow utilities
 
+## Column Management (Optional)
+Column management features are available when Supabase is configured:
+- **Setup**: Follow instructions in `SUPABASE_SETUP.md`
+- **Features**: Add/edit/delete table columns, document data types, nullable fields
+- **Graceful Degradation**: App works without Supabase - column features simply hidden
+- **Environment**: Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env.local`
+
 ## Future Considerations
 - Could migrate to Next.js if server-side features needed
 - CSV data could be replaced with BigQuery API integration
 - Dark mode support already configured in theme
 - Export functionality could be added for documentation
+- Column management could be extended with bulk import/export features

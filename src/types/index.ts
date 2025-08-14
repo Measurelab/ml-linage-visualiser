@@ -1,5 +1,17 @@
 export type LayerType = 'Raw' | 'Inter' | 'Target';
 export type TableType = 'Table' | 'View' | 'Query' | 'Sheet';
+export type ColumnDataType = 'STRING' | 'INTEGER' | 'FLOAT' | 'BOOLEAN' | 'TIMESTAMP' | 'DATE' | 'JSON' | 'ARRAY';
+
+export interface Column {
+  id: string;
+  table_id: string;
+  column_name: string;
+  data_type: ColumnDataType;
+  is_nullable: boolean;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface Table {
   id: string;
@@ -10,6 +22,7 @@ export interface Table {
   isScheduledQuery: boolean;
   link?: string;
   description?: string;
+  columns?: Column[];
 }
 
 export interface TableLineage {
@@ -66,4 +79,19 @@ export interface FilterOptions {
   showScheduledOnly: boolean;
   searchTerm: string;
   selectedDashboard?: string;
+}
+
+export interface CreateColumnRequest {
+  table_id: string;
+  column_name: string;
+  data_type: ColumnDataType;
+  is_nullable: boolean;
+  description?: string;
+}
+
+export interface UpdateColumnRequest {
+  column_name?: string;
+  data_type?: ColumnDataType;
+  is_nullable?: boolean;
+  description?: string;
 }
