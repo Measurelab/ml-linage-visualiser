@@ -159,13 +159,6 @@ function App() {
     setActiveProject(project);
   };
 
-  const handleNewProject = () => {
-    // Clear active project (useEffect will handle data clearing)
-    setActiveProject(null);
-    // Show upload screen for new project
-    setShowUpload(true);
-    setUploadMode('excel');
-  };
 
   const handleUploadComplete = (project: Project, uploadedData?: ParsedData) => {
     // Hide upload screen first
@@ -313,7 +306,6 @@ function App() {
         <ProjectTabs
           activeProject={activeProject}
           onProjectSelect={handleProjectSelect}
-          onNewProject={handleNewProject}
         />
       )}
       

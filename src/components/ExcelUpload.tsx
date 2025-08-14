@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { parseExcelFile, generateExampleExcel, ExcelParseResult } from '../utils/excelParser';
 import { importParsedDataToProject } from '../services/lineageData';
 import { createProject } from '../services/projects';
-import { Project } from '../types';
+import { Project, ParsedData } from '../types';
 
 interface ExcelUploadProps {
   onUploadComplete: (project: Project, data?: ParsedData) => void;

@@ -26,7 +26,6 @@ import { getAllProjects, deleteProject, getProjectStats } from '../services/proj
 interface ProjectTabsProps {
   activeProject: Project | null;
   onProjectSelect: (project: Project) => void;
-  onNewProject: () => void;
 }
 
 interface ProjectWithStats extends Project {
@@ -35,8 +34,7 @@ interface ProjectWithStats extends Project {
 
 const ProjectTabs: React.FC<ProjectTabsProps> = ({
   activeProject,
-  onProjectSelect,
-  onNewProject
+  onProjectSelect
 }) => {
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
