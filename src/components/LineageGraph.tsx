@@ -25,32 +25,33 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
 
-  // Function to calculate node size based on connection count
-  const getNodeRadius = (node: GraphNode): number => {
-    const baseRadius = 8;
-    const maxRadius = 20;
-    const minRadius = 6;
-    const connectionCount = node.connectionCount || 0;
-    
-    // Find the maximum connection count in the dataset for scaling
+  // Memoized function to calculate node size based on connection count
+  const getNodeRadius = React.useMemo(() => {
     const maxConnections = Math.max(...data.nodes.map(n => n.connectionCount || 0));
     
-    let radius;
-    if (maxConnections === 0) {
-      radius = baseRadius;
-    } else {
-      // Linear scaling based on connection count
-      const scale = (connectionCount / maxConnections);
-      radius = minRadius + (scale * (maxRadius - minRadius));
-    }
-    
-    // Add bonus for scheduled queries
-    if (node.isScheduledQuery) {
-      radius += 2;
-    }
-    
-    return Math.max(minRadius, Math.min(maxRadius, radius));
-  };
+    return (node: GraphNode): number => {
+      const baseRadius = 8;
+      const maxRadius = data.nodes.length > 500 ? 15 : 20; // Smaller nodes for large datasets
+      const minRadius = data.nodes.length > 500 ? 4 : 6;
+      const connectionCount = node.connectionCount || 0;
+      
+      let radius;
+      if (maxConnections === 0) {
+        radius = baseRadius;
+      } else {
+        // Linear scaling based on connection count
+        const scale = (connectionCount / maxConnections);
+        radius = minRadius + (scale * (maxRadius - minRadius));
+      }
+      
+      // Add bonus for scheduled queries (smaller for large datasets)
+      if (node.isScheduledQuery) {
+        radius += data.nodes.length > 500 ? 1 : 2;
+      }
+      
+      return Math.max(minRadius, Math.min(maxRadius, radius));
+    };
+  }, [data.nodes]);
 
   // Function to center the view on a specific node
   const centerOnNode = (nodeId: string) => {
@@ -80,6 +81,9 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   useEffect(() => {
     if (!svgRef.current || !data.nodes.length) return;
 
+    const startTime = performance.now();
+    console.log(`🎨 Rendering graph with ${data.nodes.length} nodes and ${data.links.length} links...`);
+
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
@@ -95,13 +99,30 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     zoomRef.current = zoom; // Store reference
     svg.call(zoom);
 
+    // Optimize simulation parameters based on dataset size
+    const nodeCount = data.nodes.length;
+    const linkCount = data.links.length;
+    
+    // Scale forces based on dataset size
+    const chargeStrength = nodeCount > 500 ? -150 : nodeCount > 200 ? -250 : -300;
+    const linkDistance = nodeCount > 500 ? 80 : nodeCount > 200 ? 90 : 100;
+    const collisionRadius = nodeCount > 500 ? 25 : 30;
+    
+    console.log(`📐 Using optimized forces for ${nodeCount} nodes:`, {
+      chargeStrength,
+      linkDistance,
+      collisionRadius
+    });
+
     const simulation = d3.forceSimulation<GraphNode>(data.nodes)
       .force('link', d3.forceLink<GraphNode, GraphLink>(data.links)
         .id(d => d.id)
-        .distance(100))
-      .force('charge', d3.forceManyBody().strength(-300))
+        .distance(linkDistance)
+        .strength(nodeCount > 500 ? 0.5 : 1)) // Reduce link strength for large datasets
+      .force('charge', d3.forceManyBody().strength(chargeStrength))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(30));
+      .force('collision', d3.forceCollide().radius(collisionRadius))
+      .alphaDecay(nodeCount > 500 ? 0.05 : 0.028); // Faster convergence for large datasets
 
     const link = g.append('g')
       .selectAll('line')
@@ -210,7 +231,16 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       }
     });
 
+    // Optimize tick updates for large datasets
+    let tickCount = 0;
+    const maxTicks = nodeCount > 500 ? 100 : nodeCount > 200 ? 200 : 300;
+    
     simulation.on('tick', () => {
+      tickCount++;
+      
+      // For large datasets, skip some tick updates to improve performance
+      if (nodeCount > 500 && tickCount % 2 !== 0) return;
+      
       link
         .attr('x1', d => (d.source as GraphNode).x!)
         .attr('y1', d => (d.source as GraphNode).y!)
@@ -218,6 +248,12 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
         .attr('y2', d => (d.target as GraphNode).y!);
 
       node.attr('transform', d => `translate(${d.x},${d.y})`);
+      
+      // Stop simulation early for large datasets to prevent excessive computation
+      if (tickCount > maxTicks) {
+        simulation.stop();
+        console.log(`⏹️ Simulation stopped early after ${tickCount} ticks for performance`);
+      }
     });
 
     function dragstarted(event: any, d: GraphNode) {
@@ -236,6 +272,12 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       d.fx = undefined;
       d.fy = undefined;
     }
+
+    // Add completion timing
+    simulation.on('end', () => {
+      const renderTime = performance.now() - startTime;
+      console.log(`✅ Graph rendering completed in ${Math.round(renderTime)}ms`);
+    });
 
     return () => {
       simulation.stop();

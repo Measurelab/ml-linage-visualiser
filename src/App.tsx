@@ -4,10 +4,14 @@ import TableDetails from './components/TableDetails';
 import DashboardView from './components/DashboardView';
 import SearchFilter from './components/SearchFilter';
 import Legend from './components/Legend';
+import DataUpload from './components/DataUpload';
+import ExcelUpload from './components/ExcelUpload';
 import { loadAndParseData } from './utils/dataParser';
+import { loadDataFromSupabase, hasDataInSupabase } from './services/lineageData';
+import { isSupabaseEnabled } from './services/supabase';
 import { buildGraphData } from './utils/graphBuilder';
 import { ParsedData, FilterOptions, Table, GraphNode } from './types';
-import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Loader2, PanelLeftClose, PanelLeftOpen, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -19,6 +23,8 @@ function App() {
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadMode, setUploadMode] = useState<'excel' | 'csv'>('excel');
   const [filters, setFilters] = useState<FilterOptions>({
     datasets: [],
     layers: [],
@@ -36,14 +42,46 @@ function App() {
     try {
       setLoading(true);
       setError(null);
-      const data = await loadAndParseData();
+      
+      let data: ParsedData;
+      
+      if (isSupabaseEnabled) {
+        // Check if data exists in Supabase
+        const hasData = await hasDataInSupabase();
+        
+        if (hasData) {
+          // Load from Supabase
+          data = await loadDataFromSupabase();
+          setShowUpload(false);
+        } else {
+          // No data in Supabase, show upload interface
+          setShowUpload(true);
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Fallback to CSV files
+        data = await loadAndParseData();
+      }
+      
       setParsedData(data);
+      setShowUpload(false);
     } catch (err) {
-      setError('Failed to load data. Please check that CSV files are in the public folder.');
+      if (isSupabaseEnabled) {
+        setShowUpload(true);
+        setError('No data found. Please upload your CSV files.');
+      } else {
+        setError('Failed to load data. Please check that CSV files are in the public folder.');
+      }
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUploadComplete = async () => {
+    setShowUpload(false);
+    await loadData();
   };
 
   const graphData = useMemo(() => {
@@ -64,6 +102,57 @@ function App() {
       setSelectedTable(table);
     }
   };
+
+  if (showUpload) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="border-b">
+          <div className="flex items-center justify-between px-6 py-4">
+            <h1 className="text-2xl font-semibold">BigQuery Lineage Visualizer</h1>
+            <div className="flex gap-2">
+              {uploadMode === 'csv' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUploadMode('excel')}
+                >
+                  Switch to Excel Upload
+                </Button>
+              )}
+              {uploadMode === 'excel' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUploadMode('csv')}
+                >
+                  Switch to CSV Upload
+                </Button>
+              )}
+              {parsedData && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowUpload(false)}
+                >
+                  Back to Visualization
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        {uploadMode === 'excel' ? (
+          <ExcelUpload 
+            onUploadComplete={handleUploadComplete}
+            isSupabaseEnabled={isSupabaseEnabled}
+          />
+        ) : (
+          <DataUpload 
+            onUploadComplete={handleUploadComplete}
+            isSupabaseEnabled={isSupabaseEnabled}
+          />
+        )}
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -100,12 +189,26 @@ function App() {
     <div className="min-h-screen bg-background">
       <header className="bg-card shadow-sm border-b">
         <div className="px-6 py-4">
-          <h1 className="text-xl font-medium">
-            Digital Science
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            BigQuery project: ds-bi-gbq • {parsedData.tables.size} tables • {parsedData.lineages.length} connections • {parsedData.dashboards.size} dashboards
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-medium">
+                Digital Science
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                BigQuery project: ds-bi-gbq • {parsedData.tables.size} tables • {parsedData.lineages.length} connections • {parsedData.dashboards.size} dashboards
+              </p>
+            </div>
+            {isSupabaseEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUpload(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Upload New Data
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 

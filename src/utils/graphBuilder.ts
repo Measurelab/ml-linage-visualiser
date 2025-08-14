@@ -11,10 +11,19 @@ export const buildGraphData = (
   parsedData: ParsedData,
   filters?: Partial<FilterOptions>
 ): GraphData => {
+  const startTime = performance.now();
   const { tables, lineages } = parsedData;
+  
+  console.log('🏗️ Building graph data from:', {
+    totalTables: tables.size,
+    totalLineages: lineages.length,
+    hasFilters: !!filters
+  });
   
   const filteredNodes = filterNodes(tables, filters);
   const nodeIds = new Set(Array.from(filteredNodes.values()).map(n => n.id));
+  
+  console.log(`📊 After filtering: ${filteredNodes.size} nodes from ${tables.size} tables`);
   
   const filteredLinks = lineages
     .filter(lineage => 
@@ -26,9 +35,11 @@ export const buildGraphData = (
       target: lineage.targetTableId
     }));
 
+  console.log(`🔗 Valid links: ${filteredLinks.length} from ${lineages.length} total lineages`);
+
   const nodes = Array.from(filteredNodes.values());
   
-  // Calculate connection count for each node
+  // Calculate connection count for each node using Map for O(1) lookups
   const connectionCounts = new Map<string, number>();
   
   // Initialize all nodes with 0 connections
@@ -36,7 +47,7 @@ export const buildGraphData = (
     connectionCounts.set(node.id, 0);
   });
   
-  // Count connections (both incoming and outgoing)
+  // Count connections (both incoming and outgoing) in single pass
   filteredLinks.forEach(link => {
     const sourceId = typeof link.source === 'string' ? link.source : (link.source as GraphNode).id;
     const targetId = typeof link.target === 'string' ? link.target : (link.target as GraphNode).id;
@@ -50,6 +61,18 @@ export const buildGraphData = (
     ...node,
     connectionCount: connectionCounts.get(node.id) || 0
   }));
+  
+  const buildTime = performance.now() - startTime;
+  console.log(`⚡ Graph data built in ${Math.round(buildTime)}ms:`, {
+    nodes: nodesWithConnections.length,
+    links: filteredLinks.length,
+    avgConnections: Math.round((filteredLinks.length * 2) / nodesWithConnections.length * 10) / 10
+  });
+  
+  // Warn about large datasets that might cause performance issues
+  if (nodesWithConnections.length > 1000) {
+    console.warn(`⚠️ Large dataset detected (${nodesWithConnections.length} nodes). Consider applying filters to improve performance.`);
+  }
   
   return {
     nodes: nodesWithConnections,
