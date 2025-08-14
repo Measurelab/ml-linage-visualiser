@@ -107,10 +107,10 @@ export const parseDashboardTablesCSV = (csvContent: string): DashboardTable[] =>
 export const loadAndParseData = async (): Promise<ParsedData> => {
   try {
     const [tablesResponse, lineageResponse, dashboardsResponse, dashboardTablesResponse] = await Promise.all([
-      fetch('/datasets/Digital Science Mapping Tables.csv'),
-      fetch('/datasets/Digital Science Mapping Table Lineage.csv'),
-      fetch('/datasets/Digital Science Mapping Dashboards.csv'),
-      fetch('/datasets/Digital Science Mapping.csv')
+      fetch('/Digital Science Mapping Tables.csv'),
+      fetch('/Digital Science Mapping Table Lineage.csv'),
+      fetch('/Digital Science Mapping Dashboards.csv'),
+      fetch('/Digital Science Mapping.csv')
     ]);
 
     const [tablesCSV, lineageCSV, dashboardsCSV, dashboardTablesCSV] = await Promise.all([

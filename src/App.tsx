@@ -39,7 +39,7 @@ function App() {
       const data = await loadAndParseData();
       setParsedData(data);
     } catch (err) {
-      setError('Failed to load data. Please check that CSV files are in the /datasets folder.');
+      setError('Failed to load data. Please check that CSV files are in the public folder.');
       console.error(err);
     } finally {
       setLoading(false);
