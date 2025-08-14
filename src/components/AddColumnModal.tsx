@@ -21,7 +21,6 @@ interface AddColumnModalProps {
   onSubmit: (columnData: CreateColumnRequest) => Promise<void>;
   tableId: string;
   tableName: string;
-  loading?: boolean;
 }
 
 const DATA_TYPES: ColumnDataType[] = [
@@ -40,8 +39,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({
   onClose,
   onSubmit,
   tableId,
-  tableName,
-  loading = false
+  tableName
 }) => {
   const [formData, setFormData] = useState({
     column_name: '',

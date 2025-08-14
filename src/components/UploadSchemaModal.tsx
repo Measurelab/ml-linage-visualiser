@@ -76,7 +76,6 @@ const UploadSchemaModal: React.FC<UploadSchemaModalProps> = ({
   const [uploading, setUploading] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fileContent, setFileContent] = useState<string>('');
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -87,7 +86,6 @@ const UploadSchemaModal: React.FC<UploadSchemaModalProps> = ({
 
     try {
       const text = await file.text();
-      setFileContent(text);
       const schema = JSON.parse(text);
       const columns = parseSchema(schema);
       setParsedColumns(columns);
@@ -179,7 +177,6 @@ const UploadSchemaModal: React.FC<UploadSchemaModalProps> = ({
     if (!uploading && !parsing) {
       setParsedColumns([]);
       setError(null);
-      setFileContent('');
       onClose();
     }
   };
