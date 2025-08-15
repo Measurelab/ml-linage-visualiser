@@ -63,7 +63,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
           name: name.trim(),
           description: description.trim() || undefined,
           // Don't assign measurelab as portal_name for admin-created projects
-          portal_name: portalName?.toLowerCase() === 'measurelab' ? null : portalName
+          portal_name: portalName?.toLowerCase() === 'measurelab' ? undefined : (portalName || undefined)
         });
       } else {
         project = await updateProject(existingProject!.id, {

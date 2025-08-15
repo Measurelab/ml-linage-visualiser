@@ -151,7 +151,7 @@ export const importParsedData = async (parsedData: ParsedData, portalName?: stri
       name: 'Default Project',
       description: 'Default project for lineage visualization',
       // Don't assign measurelab as portal_name for admin-created projects
-      portal_name: portalName?.toLowerCase() === 'measurelab' ? null : portalName
+      portal_name: portalName?.toLowerCase() === 'measurelab' ? undefined : portalName
     });
     projectId = project.id;
   }

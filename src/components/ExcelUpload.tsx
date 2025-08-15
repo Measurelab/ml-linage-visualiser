@@ -67,7 +67,7 @@ const ExcelUpload: React.FC<ExcelUploadProps> = ({
           name: projectName.trim(),
           description: projectDescription.trim() || undefined,
           // Don't assign measurelab as portal_name for admin-created projects
-          portal_name: portalName?.toLowerCase() === 'measurelab' ? null : portalName
+          portal_name: portalName?.toLowerCase() === 'measurelab' ? undefined : (portalName || undefined)
         });
       } else {
         // Use existing project

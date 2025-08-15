@@ -126,7 +126,7 @@ const DataUpload: React.FC<DataUploadProps> = ({ onUploadComplete, isSupabaseEna
         name: projectName.trim(),
         description: projectDescription.trim() || undefined,
         // Don't assign measurelab as portal_name for admin-created projects
-        portal_name: portalName?.toLowerCase() === 'measurelab' ? null : portalName
+        portal_name: portalName?.toLowerCase() === 'measurelab' ? undefined : (portalName || undefined)
       });
 
       // Parse all data

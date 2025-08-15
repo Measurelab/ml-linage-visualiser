@@ -24,6 +24,7 @@ export const getAllProjects = async (portalName?: string | null, isAdmin?: boole
   // Filter by portal if provided (unless in admin mode)
   // Admin mode: when portal is "measurelab" or isAdmin is true, show all projects
   const isMeasurelabAdmin = portalName?.toLowerCase() === 'measurelab';
+  
   if (portalName && !isAdmin && !isMeasurelabAdmin) {
     query = query.eq('portal_name', portalName);
   }
