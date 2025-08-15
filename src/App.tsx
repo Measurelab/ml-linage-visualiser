@@ -20,7 +20,6 @@ import { Card, CardContent } from '@/components/ui/card';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isEmbedded, setIsEmbedded] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +42,6 @@ function App() {
   useEffect(() => {
     // Check if we're embedded in an iframe
     const embedded = window.self !== window.top;
-    setIsEmbedded(embedded);
     
     // Skip dev login if embedded (rely on proxy auth instead)
     if (embedded) {
