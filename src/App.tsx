@@ -43,8 +43,16 @@ function App() {
     // Check if we're embedded in an iframe
     const embedded = window.self !== window.top;
     
+    // In production, always require authentication unless embedded
+    const isProduction = import.meta.env.PROD;
+    const requireAuth = isProduction || import.meta.env.VITE_REQUIRE_AUTH === 'true';
+    
     // Skip dev login if embedded (rely on proxy auth instead)
     if (embedded) {
+      setIsAuthenticated(true);
+      initializeApp();
+    } else if (!requireAuth) {
+      // Development mode with auth disabled
       setIsAuthenticated(true);
       initializeApp();
     } else {
