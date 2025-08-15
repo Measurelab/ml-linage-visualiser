@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import ProjectModal from './ProjectModal';
 import { Project } from '../types';
 import { getAllProjects, deleteProject, getProjectStats } from '../services/projects';
+import { usePortal } from '../contexts/PortalContext';
 
 interface ProjectTabsProps {
   activeProject: Project | null;
@@ -36,6 +37,7 @@ const ProjectTabs: React.FC<ProjectTabsProps> = ({
   activeProject,
   onProjectSelect
 }) => {
+  const { portalName, isAdmin } = usePortal();
   const [projects, setProjects] = useState<ProjectWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -46,7 +48,7 @@ const ProjectTabs: React.FC<ProjectTabsProps> = ({
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const allProjects = await getAllProjects();
+      const allProjects = await getAllProjects(portalName, isAdmin);
       
       // Load stats for each project
       const projectsWithStats = await Promise.all(
@@ -78,7 +80,7 @@ const ProjectTabs: React.FC<ProjectTabsProps> = ({
 
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [portalName, isAdmin]);
 
   const handleProjectCreated = (project: Project) => {
     loadProjects();

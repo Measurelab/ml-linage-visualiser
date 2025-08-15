@@ -4,6 +4,7 @@ import { Project } from '../types';
 export interface CreateProjectRequest {
   name: string;
   description?: string;
+  portal_name?: string;
 }
 
 export interface UpdateProjectRequest {
@@ -11,14 +12,23 @@ export interface UpdateProjectRequest {
   description?: string;
 }
 
-// Get all projects
-export const getAllProjects = async (): Promise<Project[]> => {
+// Get all projects (optionally filtered by portal)
+export const getAllProjects = async (portalName?: string | null, isAdmin?: boolean): Promise<Project[]> => {
   if (!supabase) throw new Error('Supabase client not initialized');
   
-  const { data, error } = await supabase
+  let query = supabase
     .from('projects')
     .select('*')
     .order('updated_at', { ascending: false });
+
+  // Filter by portal if provided (unless in admin mode)
+  // Admin mode: when portal is "measurelab" or isAdmin is true, show all projects
+  const isMeasurelabAdmin = portalName?.toLowerCase() === 'measurelab';
+  if (portalName && !isAdmin && !isMeasurelabAdmin) {
+    query = query.eq('portal_name', portalName);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching projects:', error);
@@ -103,14 +113,21 @@ export const getProjectById = async (projectId: string): Promise<Project | null>
   return data;
 };
 
-// Check if a project name already exists
-export const projectNameExists = async (name: string, excludeId?: string): Promise<boolean> => {
+// Check if a project name already exists (within the same portal)
+export const projectNameExists = async (name: string, portalName?: string | null, excludeId?: string): Promise<boolean> => {
   if (!supabase) throw new Error('Supabase client not initialized');
   
   let query = supabase
     .from('projects')
     .select('id')
     .eq('name', name);
+
+  // Check within the same portal only
+  if (portalName) {
+    query = query.eq('portal_name', portalName);
+  } else {
+    query = query.is('portal_name', null);
+  }
     
   if (excludeId) {
     query = query.neq('id', excludeId);

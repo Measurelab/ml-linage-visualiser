@@ -8,6 +8,7 @@ import ProjectTabs from './components/ProjectTabs';
 import ExcelUpload from './components/ExcelUpload';
 import DataUpload from './components/DataUpload';
 import DevLogin from './components/DevLogin';
+import { PortalProvider, usePortal } from './contexts/PortalContext';
 import { loadAndParseData } from './utils/dataParser';
 import { loadDataFromSupabaseProject, hasProjectData } from './services/lineageData';
 import { getAllProjects } from './services/projects';
@@ -18,7 +19,8 @@ import { Loader2, PanelLeftClose, PanelLeftOpen, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-function App() {
+function AppContent() {
+  const { portalName, isLoading: portalLoading, isAdmin } = usePortal();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +53,6 @@ function App() {
       if (!requireAuth) {
         // Development mode with auth disabled - allow access
         setIsAuthenticated(true);
-        initializeApp();
       } else if (embedded) {
         // Embedded in iframe with auth required - check if the page was loaded through proxy
         // by looking at the referrer, URL params, or current URL path
@@ -63,7 +64,6 @@ function App() {
         if ((referrer && allowedOrigin && referrer.startsWith(allowedOrigin)) || isEmbedded) {
           // Loaded from allowed origin or has embedded parameter - trust the proxy
           setIsAuthenticated(true);
-          initializeApp();
         } else {
           // Try API check as fallback
           try {
@@ -78,7 +78,6 @@ function App() {
               const result = await response.json();
               if (result.authenticated) {
                 setIsAuthenticated(true);
-                initializeApp();
               } else {
                 setError('Iframe authentication failed: Invalid proxy headers');
                 setLoading(false);
@@ -97,7 +96,6 @@ function App() {
         const auth = localStorage.getItem('devAuth');
         if (auth === 'true') {
           setIsAuthenticated(true);
-          initializeApp();
         } else {
           setLoading(false);
         }
@@ -106,6 +104,13 @@ function App() {
 
     checkAuthentication();
   }, []);
+
+  // Wait for both authentication and portal context to be ready before initializing app
+  useEffect(() => {
+    if (isAuthenticated && !portalLoading) {
+      initializeApp();
+    }
+  }, [isAuthenticated, portalLoading, portalName, isAdmin]);
 
   useEffect(() => {
     if (activeProject) {
@@ -138,8 +143,8 @@ function App() {
       setLoading(true);
       setError(null);
       
-      // Check if we have any projects
-      const projects = await getAllProjects();
+      // Check if we have any projects (filtered by portal if in iframe, unless admin)
+      const projects = await getAllProjects(portalName, isAdmin);
       
       if (projects.length === 0) {
         // No projects exist, show upload interface
@@ -268,7 +273,7 @@ function App() {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
-    initializeApp();
+    // initializeApp() will be called automatically by the useEffect when both auth and portal are ready
   };
 
   // Show login screen if not authenticated
@@ -383,6 +388,7 @@ function App() {
             <div>
               <h1 className="text-xl font-medium">
                 {loading ? 'Loading...' : activeProject?.name || 'BigQuery Lineage Visualizer'}
+                {isAdmin && <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-semibold">MEASURELAB ADMIN</span>}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
                 {loading ? 'Please wait while we load your project data' : 
@@ -514,6 +520,14 @@ function App() {
         />
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <PortalProvider>
+      <AppContent />
+    </PortalProvider>
   );
 }
 

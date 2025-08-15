@@ -58,8 +58,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Generate authentication headers
   const timestamp = Date.now().toString();
   const authToken = 'main-site-access';
+  const portalName = 'EDF Energy'; // Replace with your portal/client name (use 'measurelab' for admin)
   const signature = createHmac('sha256', TOOL_SECRET)
-    .update(`${authToken}:${timestamp}`)
+    .update(`${authToken}:${timestamp}:${portalName}`)
     .digest('hex');
 
   // Build the target URL
@@ -140,8 +141,9 @@ async function handleRequest(request: NextRequest, pathSegments: string[]) {
   // Generate authentication headers
   const timestamp = Date.now().toString();
   const authToken = 'main-site-access';
+  const portalName = 'EDF Energy'; // Replace with your portal/client name (use 'measurelab' for admin)
   const signature = createHmac('sha256', TOOL_SECRET)
-    .update(`${authToken}:${timestamp}`)
+    .update(`${authToken}:${timestamp}:${portalName}`)
     .digest('hex');
 
   // Build the target URL
@@ -156,6 +158,7 @@ async function handleRequest(request: NextRequest, pathSegments: string[]) {
         'X-Tool-Auth': authToken,
         'X-Tool-Timestamp': timestamp,
         'X-Tool-Signature': signature,
+        'X-Portal-Name': portalName,
         'Content-Type': request.headers.get('content-type') || 'application/json',
       },
       body: request.method !== 'GET' && request.method !== 'HEAD' 
@@ -193,8 +196,8 @@ import { useState, useEffect } from 'react';
 export default function LineageToolEmbed() {
   const [isLoading, setIsLoading] = useState(true);
   
-  // Use the proxy path instead of direct URL
-  const toolUrl = '/api/tool-proxy';
+  // Use the proxy path with portal parameter
+  const toolUrl = '/api/tool-proxy?embedded=true&portal=' + encodeURIComponent('EDF Energy');
   
   return (
     <div className="relative w-full h-screen">
@@ -297,6 +300,49 @@ Pass user session tokens through the iframe for additional validation.
 
 ### Option 3: Rate Limiting
 Add rate limiting to the proxy endpoint to prevent abuse.
+
+## Portal-Based Multi-Tenancy
+
+The lineage tool now supports portal-based filtering, where each client portal sees only their own projects and data.
+
+### Portal Configuration
+
+When setting up authentication headers, include the portal name:
+
+```javascript
+const portalName = 'EDF Energy'; // Your client/portal identifier
+```
+
+### How It Works
+
+1. **Portal Identification**: Each request includes `X-Portal-Name` header
+2. **Data Filtering**: Only projects with matching `portal_name` are shown
+3. **Secure Isolation**: Complete data separation between different portals
+4. **Automatic Assignment**: New projects are automatically assigned to the current portal
+
+### Portal Examples
+- `'X-Portal-Name': 'EDF Energy'` → Shows only EDF Energy projects
+- `'X-Portal-Name': 'British Gas'` → Shows only British Gas projects
+- `'X-Portal-Name': 'Octopus Energy'` → Shows only Octopus Energy projects
+- `'X-Portal-Name': 'measurelab'` → **ADMIN MODE** - Shows all projects from all portals
+
+### Measurelab Admin Mode
+For administrative access to view all projects regardless of portal, use the special "measurelab" portal:
+
+```tsx
+// Admin iframe URL - shows all projects
+const adminToolUrl = '/api/tool-proxy?portal=measurelab';
+
+// Or with embedded parameter
+const adminToolUrl = '/api/tool-proxy?embedded=true&portal=measurelab';
+```
+
+**Measurelab Admin Features:**
+- Shows all projects from all portals
+- Displays "MEASURELAB ADMIN" badge in header  
+- No portal filtering applied
+- Portal name "measurelab" (case-insensitive) triggers admin mode
+- Useful for system administration and cross-portal management
 
 ## Support
 

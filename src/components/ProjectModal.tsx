@@ -13,6 +13,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Project } from '../types';
 import { createProject, updateProject, projectNameExists } from '../services/projects';
+import { usePortal } from '../contexts/PortalContext';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
   existingProject,
   mode 
 }) => {
+  const { portalName } = usePortal();
   const [name, setName] = useState(existingProject?.name || '');
   const [description, setDescription] = useState(existingProject?.description || '');
   const [loading, setLoading] = useState(false);
@@ -59,7 +61,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
       if (mode === 'create') {
         project = await createProject({
           name: name.trim(),
-          description: description.trim() || undefined
+          description: description.trim() || undefined,
+          // Don't assign measurelab as portal_name for admin-created projects
+          portal_name: portalName?.toLowerCase() === 'measurelab' ? null : portalName
         });
       } else {
         project = await updateProject(existingProject!.id, {
