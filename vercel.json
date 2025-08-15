@@ -19,7 +19,7 @@
     }
   ],
   "functions": {
-    "api/health.ts": {
+    "api/*.js": {
       "maxDuration": 10
     }
   }

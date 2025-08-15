@@ -1,6 +1,4 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-export default function handler(req: VercelRequest, res: VercelResponse) {
+export default function handler(req, res) {
   // Simple health check endpoint for the proxy to verify the tool is running
   res.status(200).json({ 
     status: 'healthy',
