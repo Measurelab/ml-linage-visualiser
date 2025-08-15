@@ -60,19 +60,8 @@ function App() {
         const urlParams = new URLSearchParams(window.location.search);
         const isEmbedded = urlParams.get('embedded') === 'true';
         
-        // Debug logging
-        console.log('🔍 Iframe Authentication Debug:', {
-          embedded: embedded,
-          referrer: referrer,
-          allowedOrigin: allowedOrigin,
-          isEmbedded: isEmbedded,
-          currentUrl: window.location.href,
-          urlParams: urlParams.toString()
-        });
-        
         if ((referrer && allowedOrigin && referrer.startsWith(allowedOrigin)) || isEmbedded) {
           // Loaded from allowed origin or has embedded parameter - trust the proxy
-          console.log('✅ Iframe authentication successful');
           setIsAuthenticated(true);
           initializeApp();
         } else {

@@ -25,13 +25,7 @@ export default function handler(req, res) {
     });
   }
 
-  console.log('Auth check - Headers received:', {
-    'x-tool-auth': req.headers['x-tool-auth'],
-    'x-tool-timestamp': req.headers['x-tool-timestamp'],
-    'x-tool-signature': req.headers['x-tool-signature'] ? 'present' : 'missing',
-    origin: req.headers.origin,
-    referer: req.headers.referer
-  });
+  // Headers check removed for security
 
   // Get authentication headers - check both lowercase and uppercase variants
   const authHeader = req.headers['x-tool-auth'] || req.headers['X-Tool-Auth'];
@@ -40,17 +34,9 @@ export default function handler(req, res) {
 
   // Check if all required headers are present
   if (!authHeader || !timestamp || !signature) {
-    console.log('Auth check failed - Missing headers:', {
-      authHeader: !!authHeader,
-      timestamp: !!timestamp,
-      signature: !!signature
-    });
-    
     return res.status(401).json({ 
       authenticated: false, 
-      error: 'Missing authentication headers',
-      required: ['X-Tool-Auth', 'X-Tool-Timestamp', 'X-Tool-Signature'],
-      received: Object.keys(req.headers).filter(h => h.startsWith('x-tool'))
+      error: 'Missing authentication headers'
     });
   }
 
@@ -60,17 +46,9 @@ export default function handler(req, res) {
   const timeDiff = Math.abs(currentTime - requestTime);
   
   if (isNaN(requestTime) || timeDiff > 5 * 60 * 1000) {
-    console.log('Auth check failed - Invalid timestamp:', { 
-      requestTime, 
-      currentTime, 
-      timeDiff,
-      maxAllowed: 5 * 60 * 1000 
-    });
-    
     return res.status(401).json({ 
       authenticated: false, 
-      error: 'Invalid or expired timestamp',
-      timeDiff: timeDiff
+      error: 'Invalid or expired timestamp'
     });
   }
 
@@ -81,13 +59,6 @@ export default function handler(req, res) {
     .digest('hex');
 
   if (signature !== expectedSignature) {
-    console.log('Auth check failed - Invalid signature:', {
-      received: signature,
-      expected: expectedSignature,
-      authHeader,
-      timestamp
-    });
-    
     return res.status(401).json({ 
       authenticated: false, 
       error: 'Invalid signature'
@@ -95,10 +66,8 @@ export default function handler(req, res) {
   }
 
   // Authentication successful
-  console.log('Auth check successful');
   res.status(200).json({ 
     authenticated: true,
-    origin: ALLOWED_ORIGIN,
     mode: 'production'
   });
 }
