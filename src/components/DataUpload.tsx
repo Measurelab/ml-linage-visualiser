@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { parseTablesCSV, parseLineageCSV, parseDashboardsCSV, parseDashboardTablesCSV } from '../utils/dataParser';
 import { importParsedDataToProject } from '../services/lineageData';
 import { createProject } from '../services/projects';
+import { usePortal } from '../contexts/PortalContext';
 import { Project, ParsedData } from '../types';
 
 interface DataUploadProps {
@@ -22,6 +23,7 @@ interface FileUploadState {
 }
 
 const DataUpload: React.FC<DataUploadProps> = ({ onUploadComplete, isSupabaseEnabled }) => {
+  const { portalName } = usePortal();
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('');
@@ -122,7 +124,9 @@ const DataUpload: React.FC<DataUploadProps> = ({ onUploadComplete, isSupabaseEna
       // Create project
       const project = await createProject({
         name: projectName.trim(),
-        description: projectDescription.trim() || undefined
+        description: projectDescription.trim() || undefined,
+        // Don't assign measurelab as portal_name for admin-created projects
+        portal_name: portalName?.toLowerCase() === 'measurelab' ? undefined : (portalName || undefined)
       });
 
       // Parse all data

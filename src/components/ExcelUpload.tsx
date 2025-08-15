@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { parseExcelFile, generateExampleExcel, ExcelParseResult } from '../utils/excelParser';
 import { importParsedDataToProject } from '../services/lineageData';
 import { createProject } from '../services/projects';
+import { usePortal } from '../contexts/PortalContext';
 import { Project, ParsedData } from '../types';
 
 interface ExcelUploadProps {
@@ -21,6 +22,7 @@ const ExcelUpload: React.FC<ExcelUploadProps> = ({
   existingProject,
   mode 
 }) => {
+  const { portalName } = usePortal();
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<ExcelParseResult | null>(null);
@@ -63,7 +65,9 @@ const ExcelUpload: React.FC<ExcelUploadProps> = ({
         // Create new project
         project = await createProject({
           name: projectName.trim(),
-          description: projectDescription.trim() || undefined
+          description: projectDescription.trim() || undefined,
+          // Don't assign measurelab as portal_name for admin-created projects
+          portal_name: portalName?.toLowerCase() === 'measurelab' ? undefined : (portalName || undefined)
         });
       } else {
         // Use existing project

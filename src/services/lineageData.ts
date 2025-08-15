@@ -140,7 +140,7 @@ export const importParsedDataToProject = async (parsedData: ParsedData, projectI
 };
 
 // Backward compatibility - import to default project
-export const importParsedData = async (parsedData: ParsedData): Promise<void> => {
+export const importParsedData = async (parsedData: ParsedData, portalName?: string): Promise<void> => {
   // For now, create a default project if none exists
   const projects = await supabase?.from('projects').select('id').limit(1);
   let projectId = projects?.data?.[0]?.id;
@@ -149,7 +149,9 @@ export const importParsedData = async (parsedData: ParsedData): Promise<void> =>
     const { createProject } = await import('./projects');
     const project = await createProject({
       name: 'Default Project',
-      description: 'Default project for lineage visualization'
+      description: 'Default project for lineage visualization',
+      // Don't assign measurelab as portal_name for admin-created projects
+      portal_name: portalName?.toLowerCase() === 'measurelab' ? undefined : portalName
     });
     projectId = project.id;
   }

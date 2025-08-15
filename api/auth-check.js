@@ -9,7 +9,7 @@ export default function handler(req, res) {
   // Allow CORS from the allowed origin
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Tool-Auth, X-Tool-Timestamp, X-Tool-Signature, Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Tool-Auth, X-Tool-Timestamp, X-Tool-Signature, X-Portal-Name, Content-Type');
 
   // Handle preflight
   if (req.method === 'OPTIONS') {
@@ -25,12 +25,12 @@ export default function handler(req, res) {
     });
   }
 
-  // Headers check removed for security
 
   // Get authentication headers - check both lowercase and uppercase variants
   const authHeader = req.headers['x-tool-auth'] || req.headers['X-Tool-Auth'];
   const timestamp = req.headers['x-tool-timestamp'] || req.headers['X-Tool-Timestamp'];
   const signature = req.headers['x-tool-signature'] || req.headers['X-Tool-Signature'];
+  const portalName = req.headers['x-portal-name'] || req.headers['X-Portal-Name'];
 
   // Check if all required headers are present
   if (!authHeader || !timestamp || !signature) {
@@ -52,10 +52,14 @@ export default function handler(req, res) {
     });
   }
 
-  // Verify signature
+  // Verify signature - include portal name in HMAC if provided
+  const signaturePayload = portalName 
+    ? `${authHeader}:${timestamp}:${portalName}`
+    : `${authHeader}:${timestamp}`;
+    
   const expectedSignature = crypto
     .createHmac('sha256', TOOL_SECRET)
-    .update(`${authHeader}:${timestamp}`)
+    .update(signaturePayload)
     .digest('hex');
 
   if (signature !== expectedSignature) {
@@ -68,6 +72,7 @@ export default function handler(req, res) {
   // Authentication successful
   res.status(200).json({ 
     authenticated: true,
-    mode: 'production'
+    mode: 'production',
+    portalName: portalName || null
   });
 }
