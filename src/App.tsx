@@ -48,43 +48,63 @@ function App() {
       const isProduction = import.meta.env.PROD;
       const requireAuth = isProduction || import.meta.env.VITE_REQUIRE_AUTH === 'true';
       
-      if (embedded && requireAuth) {
-        // Embedded in iframe - verify proxy authentication
-        try {
-          const response = await fetch('/api/auth-check', {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            if (result.authenticated) {
-              setIsAuthenticated(true);
-              initializeApp();
+      if (!requireAuth) {
+        // Development mode with auth disabled - allow access
+        setIsAuthenticated(true);
+        initializeApp();
+      } else if (embedded) {
+        // Embedded in iframe with auth required - check if the page was loaded through proxy
+        // by looking at the referrer, URL params, or current URL path
+        const referrer = document.referrer;
+        const allowedOrigin = import.meta.env.VITE_ALLOWED_ORIGIN;
+        const urlParams = new URLSearchParams(window.location.search);
+        const isEmbedded = urlParams.get('embedded') === 'true';
+        
+        // Debug logging
+        console.log('🔍 Iframe Authentication Debug:', {
+          embedded: embedded,
+          referrer: referrer,
+          allowedOrigin: allowedOrigin,
+          isEmbedded: isEmbedded,
+          currentUrl: window.location.href,
+          urlParams: urlParams.toString()
+        });
+        
+        if ((referrer && allowedOrigin && referrer.startsWith(allowedOrigin)) || isEmbedded) {
+          // Loaded from allowed origin or has embedded parameter - trust the proxy
+          console.log('✅ Iframe authentication successful');
+          setIsAuthenticated(true);
+          initializeApp();
+        } else {
+          // Try API check as fallback
+          try {
+            const response = await fetch('/api/auth-check', {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              if (result.authenticated) {
+                setIsAuthenticated(true);
+                initializeApp();
+              } else {
+                setError('Iframe authentication failed: Invalid proxy headers');
+                setLoading(false);
+              }
             } else {
-              setError('Iframe authentication failed: Invalid proxy headers');
+              setError('Iframe authentication failed: Proxy verification error');
               setLoading(false);
             }
-          } else {
-            setError('Iframe authentication failed: Proxy verification error');
+          } catch (err) {
+            setError('Iframe authentication failed: Cannot verify proxy');
             setLoading(false);
           }
-        } catch (err) {
-          setError('Iframe authentication failed: Cannot verify proxy');
-          setLoading(false);
         }
-      } else if (embedded && !requireAuth) {
-        // Development mode with auth disabled
-        setIsAuthenticated(true);
-        initializeApp();
-      } else if (!requireAuth) {
-        // Development mode with auth disabled
-        setIsAuthenticated(true);
-        initializeApp();
       } else {
-        // Direct access - check dev login
+        // Direct access with auth required - check dev login
         const auth = localStorage.getItem('devAuth');
         if (auth === 'true') {
           setIsAuthenticated(true);
