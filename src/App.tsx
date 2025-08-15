@@ -40,31 +40,62 @@ function App() {
   });
 
   useEffect(() => {
-    // Check if we're embedded in an iframe
-    const embedded = window.self !== window.top;
-    
-    // In production, always require authentication unless embedded
-    const isProduction = import.meta.env.PROD;
-    const requireAuth = isProduction || import.meta.env.VITE_REQUIRE_AUTH === 'true';
-    
-    // Skip dev login if embedded (rely on proxy auth instead)
-    if (embedded) {
-      setIsAuthenticated(true);
-      initializeApp();
-    } else if (!requireAuth) {
-      // Development mode with auth disabled
-      setIsAuthenticated(true);
-      initializeApp();
-    } else {
-      // Check if already authenticated for standalone access
-      const auth = localStorage.getItem('devAuth');
-      if (auth === 'true') {
+    const checkAuthentication = async () => {
+      // Check if we're embedded in an iframe
+      const embedded = window.self !== window.top;
+      
+      // In production, always require authentication unless embedded
+      const isProduction = import.meta.env.PROD;
+      const requireAuth = isProduction || import.meta.env.VITE_REQUIRE_AUTH === 'true';
+      
+      if (embedded && requireAuth) {
+        // Embedded in iframe - verify proxy authentication
+        try {
+          const response = await fetch('/api/auth-check', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.authenticated) {
+              setIsAuthenticated(true);
+              initializeApp();
+            } else {
+              setError('Iframe authentication failed: Invalid proxy headers');
+              setLoading(false);
+            }
+          } else {
+            setError('Iframe authentication failed: Proxy verification error');
+            setLoading(false);
+          }
+        } catch (err) {
+          setError('Iframe authentication failed: Cannot verify proxy');
+          setLoading(false);
+        }
+      } else if (embedded && !requireAuth) {
+        // Development mode with auth disabled
+        setIsAuthenticated(true);
+        initializeApp();
+      } else if (!requireAuth) {
+        // Development mode with auth disabled
         setIsAuthenticated(true);
         initializeApp();
       } else {
-        setLoading(false);
+        // Direct access - check dev login
+        const auth = localStorage.getItem('devAuth');
+        if (auth === 'true') {
+          setIsAuthenticated(true);
+          initializeApp();
+        } else {
+          setLoading(false);
+        }
       }
-    }
+    };
+
+    checkAuthentication();
   }, []);
 
   useEffect(() => {

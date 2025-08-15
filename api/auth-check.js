@@ -18,19 +18,39 @@ export default function handler(req, res) {
 
   // Skip authentication for local development if not required
   if (!REQUIRE_AUTH && process.env.NODE_ENV !== 'production') {
-    return res.status(200).json({ authenticated: true });
+    return res.status(200).json({ 
+      authenticated: true, 
+      mode: 'development',
+      reason: 'Auth disabled in development'
+    });
   }
 
-  // Get authentication headers
-  const authHeader = req.headers['x-tool-auth'];
-  const timestamp = req.headers['x-tool-timestamp'];
-  const signature = req.headers['x-tool-signature'];
+  console.log('Auth check - Headers received:', {
+    'x-tool-auth': req.headers['x-tool-auth'],
+    'x-tool-timestamp': req.headers['x-tool-timestamp'],
+    'x-tool-signature': req.headers['x-tool-signature'] ? 'present' : 'missing',
+    origin: req.headers.origin,
+    referer: req.headers.referer
+  });
+
+  // Get authentication headers - check both lowercase and uppercase variants
+  const authHeader = req.headers['x-tool-auth'] || req.headers['X-Tool-Auth'];
+  const timestamp = req.headers['x-tool-timestamp'] || req.headers['X-Tool-Timestamp'];
+  const signature = req.headers['x-tool-signature'] || req.headers['X-Tool-Signature'];
 
   // Check if all required headers are present
   if (!authHeader || !timestamp || !signature) {
+    console.log('Auth check failed - Missing headers:', {
+      authHeader: !!authHeader,
+      timestamp: !!timestamp,
+      signature: !!signature
+    });
+    
     return res.status(401).json({ 
       authenticated: false, 
-      error: 'Missing authentication headers' 
+      error: 'Missing authentication headers',
+      required: ['X-Tool-Auth', 'X-Tool-Timestamp', 'X-Tool-Signature'],
+      received: Object.keys(req.headers).filter(h => h.startsWith('x-tool'))
     });
   }
 
@@ -40,9 +60,17 @@ export default function handler(req, res) {
   const timeDiff = Math.abs(currentTime - requestTime);
   
   if (isNaN(requestTime) || timeDiff > 5 * 60 * 1000) {
+    console.log('Auth check failed - Invalid timestamp:', { 
+      requestTime, 
+      currentTime, 
+      timeDiff,
+      maxAllowed: 5 * 60 * 1000 
+    });
+    
     return res.status(401).json({ 
       authenticated: false, 
-      error: 'Invalid or expired timestamp' 
+      error: 'Invalid or expired timestamp',
+      timeDiff: timeDiff
     });
   }
 
@@ -53,15 +81,24 @@ export default function handler(req, res) {
     .digest('hex');
 
   if (signature !== expectedSignature) {
+    console.log('Auth check failed - Invalid signature:', {
+      received: signature,
+      expected: expectedSignature,
+      authHeader,
+      timestamp
+    });
+    
     return res.status(401).json({ 
       authenticated: false, 
-      error: 'Invalid signature' 
+      error: 'Invalid signature'
     });
   }
 
   // Authentication successful
+  console.log('Auth check successful');
   res.status(200).json({ 
     authenticated: true,
-    origin: ALLOWED_ORIGIN
+    origin: ALLOWED_ORIGIN,
+    mode: 'production'
   });
 }
