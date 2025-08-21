@@ -8,14 +8,16 @@ import ProjectTabs from './components/ProjectTabs';
 import ExcelUpload from './components/ExcelUpload';
 import DataUpload from './components/DataUpload';
 import DevLogin from './components/DevLogin';
+import DeleteConfirmDialog from './components/DeleteConfirmDialog';
+import CreateTableDialog from './components/CreateTableDialog';
 import { PortalProvider, usePortal } from './contexts/PortalContext';
 import { loadAndParseData } from './utils/dataParser';
-import { loadDataFromSupabaseProject, hasProjectData } from './services/lineageData';
+import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage } from './services/lineageData';
 import { getAllProjects } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
 import { buildGraphData } from './utils/graphBuilder';
-import { ParsedData, FilterOptions, Table, GraphNode, Project } from './types';
-import { Loader2, PanelLeftClose, PanelLeftOpen, Upload } from 'lucide-react';
+import { ParsedData, FilterOptions, Table, GraphNode, Project, TableLineage } from './types';
+import { Loader2, PanelLeftClose, PanelLeftOpen, Upload, Plus, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -40,6 +42,12 @@ function AppContent() {
     searchTerm: '',
     selectedDashboard: undefined
   });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tableToDelete, setTableToDelete] = useState<GraphNode | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [connectionMode, setConnectionMode] = useState(false);
+  const [createConnectionNode, setCreateConnectionNode] = useState<GraphNode | null>(null);
+  const [createConnectionMode, setCreateConnectionMode] = useState<'upstream' | 'downstream' | null>(null);
 
   useEffect(() => {
     const checkAuthentication = async () => {
@@ -276,6 +284,148 @@ function AppContent() {
     // initializeApp() will be called automatically by the useEffect when both auth and portal are ready
   };
 
+  const handleNodeDelete = (node: GraphNode) => {
+    setTableToDelete(node);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!tableToDelete || !activeProject) return;
+    
+    try {
+      await deleteTable(tableToDelete.id, activeProject.id);
+      
+      // Update local state
+      if (parsedData) {
+        const newTables = new Map(parsedData.tables);
+        newTables.delete(tableToDelete.id);
+        
+        const newLineages = parsedData.lineages.filter(
+          l => l.sourceTableId !== tableToDelete.id && l.targetTableId !== tableToDelete.id
+        );
+        
+        const newDashboardTables = parsedData.dashboardTables.filter(
+          dt => dt.tableId !== tableToDelete.id
+        );
+        
+        setParsedData({
+          ...parsedData,
+          tables: newTables,
+          lineages: newLineages,
+          dashboardTables: newDashboardTables
+        });
+      }
+      
+      // Clear selection if deleted table was selected
+      if (selectedTable?.id === tableToDelete.id) {
+        setSelectedTable(null);
+      }
+      
+      setDeleteDialogOpen(false);
+      setTableToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete table:', error);
+      alert('Failed to delete table. Please try again.');
+    }
+  };
+
+  const handleCreateTable = async (newTable: Table, autoConnect?: { node: GraphNode; mode: 'upstream' | 'downstream' }) => {
+    if (!activeProject) return;
+    
+    try {
+      await createTable(newTable, activeProject.id);
+      
+      // Update local state
+      if (parsedData) {
+        const newTables = new Map(parsedData.tables);
+        newTables.set(newTable.id, newTable);
+        
+        let updatedLineages = parsedData.lineages;
+        
+        // If auto-connecting to another node
+        if (autoConnect) {
+          const newLineage: TableLineage = autoConnect.mode === 'upstream' ? {
+            sourceTableId: newTable.id,
+            targetTableId: autoConnect.node.id,
+            sourceTableName: newTable.name,
+            targetTableName: autoConnect.node.name
+          } : {
+            sourceTableId: autoConnect.node.id,
+            targetTableId: newTable.id,
+            sourceTableName: autoConnect.node.name,
+            targetTableName: newTable.name
+          };
+          
+          await createLineage(newLineage, activeProject.id);
+          updatedLineages = [...parsedData.lineages, newLineage];
+        }
+        
+        setParsedData({
+          ...parsedData,
+          tables: newTables,
+          lineages: updatedLineages
+        });
+      }
+      
+      setCreateDialogOpen(false);
+      setCreateConnectionNode(null);
+      setCreateConnectionMode(null);
+    } catch (error) {
+      console.error('Failed to create table:', error);
+      alert('Failed to create table. Please try again.');
+    }
+  };
+
+  const handleNodeAddUpstream = (node: GraphNode) => {
+    setCreateConnectionNode(node);
+    setCreateConnectionMode('upstream');
+    setCreateDialogOpen(true);
+  };
+
+  const handleNodeAddDownstream = (node: GraphNode) => {
+    setCreateConnectionNode(node);
+    setCreateConnectionMode('downstream');
+    setCreateDialogOpen(true);
+  };
+
+  const handleConnectionCreate = async (source: GraphNode, target: GraphNode) => {
+    if (!activeProject) return;
+    
+    const newLineage: TableLineage = {
+      sourceTableId: source.id,
+      targetTableId: target.id,
+      sourceTableName: source.name,
+      targetTableName: target.name
+    };
+    
+    try {
+      await createLineage(newLineage, activeProject.id);
+      
+      // Update local state
+      if (parsedData) {
+        setParsedData({
+          ...parsedData,
+          lineages: [...parsedData.lineages, newLineage]
+        });
+      }
+      
+      setConnectionMode(false);
+    } catch (error) {
+      console.error('Failed to create connection:', error);
+      alert('Failed to create connection. Please try again.');
+    }
+  };
+
+  // Calculate upstream and downstream counts for delete dialog
+  const getConnectionCounts = (nodeId: string) => {
+    if (!parsedData) return { upstream: 0, downstream: 0 };
+    
+    const upstream = parsedData.lineages.filter(l => l.targetTableId === nodeId).length;
+    const downstream = parsedData.lineages.filter(l => l.sourceTableId === nodeId).length;
+    
+    return { upstream, downstream };
+  };
+
   // Show login screen if not authenticated
   if (!isAuthenticated) {
     return <DevLogin onLogin={handleLogin} />;
@@ -452,6 +602,31 @@ function AppContent() {
           </div>
 
           <div className="flex-1 relative bg-muted/5">
+            {/* Toolbar */}
+            <div className="absolute top-4 right-4 z-20 flex gap-2">
+              {isSupabaseEnabled && activeProject && (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={() => setCreateDialogOpen(true)}
+                    className="shadow-md"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add table
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={connectionMode ? 'destructive' : 'outline'}
+                    onClick={() => setConnectionMode(!connectionMode)}
+                    className="shadow-md"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    {connectionMode ? 'Cancel connection' : 'Create connection'}
+                  </Button>
+                </>
+              )}
+            </div>
+            
             {/* Loading overlay when switching projects */}
             {loading && (
               <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-30 flex items-center justify-center">
@@ -479,8 +654,13 @@ function AppContent() {
             <LineageGraph
               data={graphData}
               onNodeClick={handleNodeClick}
+              onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
+              onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
+              onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
               highlightedNodes={highlightedNodes}
               focusedNodeId={selectedTable?.id}
+              connectionMode={connectionMode}
+              onConnectionCreate={handleConnectionCreate}
             />
             
             {graphData.nodes.length === 0 && (
@@ -517,6 +697,33 @@ function AppContent() {
           isOpen={!!selectedTable}
           onClose={() => setSelectedTable(null)}
           onTableSelect={handleTableSelect}
+        />
+        
+        {/* Delete confirmation dialog */}
+        <DeleteConfirmDialog
+          table={tableToDelete}
+          isOpen={deleteDialogOpen}
+          onClose={() => {
+            setDeleteDialogOpen(false);
+            setTableToDelete(null);
+          }}
+          onConfirm={confirmDelete}
+          upstreamCount={tableToDelete ? getConnectionCounts(tableToDelete.id).upstream : 0}
+          downstreamCount={tableToDelete ? getConnectionCounts(tableToDelete.id).downstream : 0}
+        />
+        
+        {/* Create table dialog */}
+        <CreateTableDialog
+          isOpen={createDialogOpen}
+          onClose={() => {
+            setCreateDialogOpen(false);
+            setCreateConnectionNode(null);
+            setCreateConnectionMode(null);
+          }}
+          onConfirm={handleCreateTable}
+          existingTableIds={new Set(parsedData?.tables.keys() || [])}
+          connectionNode={createConnectionNode || undefined}
+          connectionMode={createConnectionMode || undefined}
         />
       </div>
     </div>

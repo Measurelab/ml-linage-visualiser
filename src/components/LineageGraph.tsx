@@ -6,22 +6,34 @@ import { getLayerColor } from '../utils/graphBuilder';
 interface LineageGraphProps {
   data: GraphData;
   onNodeClick?: (node: GraphNode) => void;
+  onNodeDelete?: (node: GraphNode) => void;
+  onNodeAddUpstream?: (node: GraphNode) => void;
+  onNodeAddDownstream?: (node: GraphNode) => void;
   highlightedNodes?: Set<string>;
   focusedNodeId?: string;
   width?: number;
   height?: number;
+  connectionMode?: boolean;
+  onConnectionCreate?: (source: GraphNode, target: GraphNode) => void;
 }
 
 const LineageGraph: React.FC<LineageGraphProps> = ({
   data,
   onNodeClick,
+  onNodeDelete,
+  onNodeAddUpstream,
+  onNodeAddDownstream,
   highlightedNodes = new Set(),
   focusedNodeId,
   width = window.innerWidth,
-  height = window.innerHeight - 200
+  height = window.innerHeight - 200,
+  connectionMode = false,
+  onConnectionCreate
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [connectionSource, setConnectionSource] = useState<GraphNode | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
 
@@ -203,11 +215,35 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     .on('mouseout', function() {
       tooltip.style('visibility', 'hidden');
     })
-    .on('click', function(_event, d) {
-      setSelectedNode(d.id);
-      if (onNodeClick) {
-        onNodeClick(d);
+    .on('click', function(event, d) {
+      event.stopPropagation();
+      
+      if (connectionMode) {
+        if (!connectionSource) {
+          setConnectionSource(d);
+        } else if (connectionSource.id !== d.id) {
+          if (onConnectionCreate) {
+            onConnectionCreate(connectionSource, d);
+          }
+          setConnectionSource(null);
+        }
+      } else {
+        setSelectedNode(d.id);
+        if (onNodeClick) {
+          onNodeClick(d);
+        }
       }
+    })
+    .on('contextmenu', function(event, d) {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // Get the SVG container's bounding rect for proper positioning
+      const svgRect = svgRef.current!.getBoundingClientRect();
+      const x = event.clientX - svgRect.left;
+      const y = event.clientY - svgRect.top;
+      
+      setContextMenu({ x, y, node: d });
     });
 
     simulation.on('tick', () => {
@@ -237,11 +273,17 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       d.fy = undefined;
     }
 
+    // Click outside to close context menu
+    const handleClickOutside = () => {
+      setContextMenu(null);
+    };
+    svg.on('click', handleClickOutside);
+
     return () => {
       simulation.stop();
       tooltip.remove();
     };
-  }, [data, highlightedNodes, selectedNode, onNodeClick, width, height]);
+  }, [data, highlightedNodes, selectedNode, onNodeClick, onNodeDelete, width, height, connectionMode, connectionSource, onConnectionCreate]);
 
   // Handle focusing on a specific node when focusedNodeId changes
   useEffect(() => {
@@ -255,14 +297,101 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     }
   }, [focusedNodeId]);
 
+  // Clear connection source when connection mode is disabled
+  useEffect(() => {
+    if (!connectionMode) {
+      setConnectionSource(null);
+    }
+  }, [connectionMode]);
+
+  // Handle context menu click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenu) {
+        setContextMenu(null);
+      }
+    };
+
+    if (contextMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [contextMenu]);
+
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
       <svg
         ref={svgRef}
         width={width}
         height={height}
-        className="w-full h-full"
+        className={`w-full h-full ${connectionMode ? 'cursor-crosshair' : ''}`}
       />
+      
+      {/* Connection mode indicator */}
+      {connectionMode && connectionSource && (
+        <div className="absolute top-4 right-4 bg-primary text-primary-foreground px-3 py-2 rounded-md shadow-lg">
+          <p className="text-sm font-medium">
+            Select target table for: <strong>{connectionSource.name}</strong>
+          </p>
+        </div>
+      )}
+      
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          className="absolute bg-card border rounded-md shadow-lg py-1 z-50"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+            onClick={() => {
+              if (onNodeClick) {
+                onNodeClick(contextMenu.node);
+              }
+              setContextMenu(null);
+            }}
+          >
+            View details
+          </button>
+          {onNodeDelete && (
+            <>
+              <div className="border-t my-1" />
+              <button
+                className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+                onClick={() => {
+                  if (onNodeAddUpstream) {
+                    onNodeAddUpstream(contextMenu.node);
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                Add upstream table
+              </button>
+              <button
+                className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+                onClick={() => {
+                  if (onNodeAddDownstream) {
+                    onNodeAddDownstream(contextMenu.node);
+                  }
+                  setContextMenu(null);
+                }}
+              >
+                Add downstream table
+              </button>
+              <div className="border-t my-1" />
+              <button
+                className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2 text-destructive"
+                onClick={() => {
+                  onNodeDelete(contextMenu.node);
+                  setContextMenu(null);
+                }}
+              >
+                Delete table
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
