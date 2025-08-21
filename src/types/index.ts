@@ -47,13 +47,26 @@ export interface DashboardTable {
   tableName: string;
 }
 
-export interface GraphNode extends Table {
+// Union type for graph nodes - can be either a table or dashboard
+export interface TableGraphNode extends Table {
+  nodeType: 'table';
   x?: number;
   y?: number;
   fx?: number;
   fy?: number;
   connectionCount?: number;
 }
+
+export interface DashboardGraphNode extends Dashboard {
+  nodeType: 'dashboard';
+  x?: number;
+  y?: number;
+  fx?: number;
+  fy?: number;
+  connectionCount?: number;
+}
+
+export type GraphNode = TableGraphNode | DashboardGraphNode;
 
 export interface GraphLink {
   source: string | GraphNode;

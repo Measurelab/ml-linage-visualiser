@@ -9,22 +9,43 @@ export const buildGraphData = (
   parsedData: ParsedData,
   filters?: Partial<FilterOptions>
 ): GraphData => {
-  const { lineages } = parsedData;
+  const { lineages, dashboardTables } = parsedData;
   
-  const filteredNodes = filterNodes(parsedData, filters);
-  const nodeIds = new Set(Array.from(filteredNodes.values()).map(n => n.id));
+  // Get filtered table nodes
+  const filteredTableNodes = filterNodes(parsedData, filters);
+  const tableIds = new Set(Array.from(filteredTableNodes.values()).map(n => n.id));
   
-  const filteredLinks = lineages
+  // Get dashboard nodes (all dashboards for now - could add filtering later)
+  const dashboardNodes = getDashboardNodes(parsedData, filters);
+  const dashboardIds = new Set(Array.from(dashboardNodes.values()).map(n => n.id));
+  
+  // Combine all nodes
+  const allNodes = new Map([...filteredTableNodes, ...dashboardNodes]);
+  
+  // Table-to-table connections
+  const tableLinks = lineages
     .filter(lineage => 
-      nodeIds.has(lineage.sourceTableId) && 
-      nodeIds.has(lineage.targetTableId)
+      tableIds.has(lineage.sourceTableId) && 
+      tableIds.has(lineage.targetTableId)
     )
     .map(lineage => ({
       source: lineage.sourceTableId,
       target: lineage.targetTableId
     }));
 
-  const nodes = Array.from(filteredNodes.values());
+  // Table-to-dashboard connections
+  const dashboardLinks = dashboardTables
+    .filter(dt => 
+      tableIds.has(dt.tableId) && 
+      dashboardIds.has(dt.dashboardId)
+    )
+    .map(dt => ({
+      source: dt.tableId,
+      target: dt.dashboardId
+    }));
+
+  const allLinks = [...tableLinks, ...dashboardLinks];
+  const nodes = Array.from(allNodes.values());
   
   // Calculate connection count for each node
   const connectionCounts = new Map<string, number>();
@@ -35,7 +56,7 @@ export const buildGraphData = (
   });
   
   // Count connections (both incoming and outgoing)
-  filteredLinks.forEach(link => {
+  allLinks.forEach(link => {
     const sourceId = typeof link.source === 'string' ? link.source : (link.source as GraphNode).id;
     const targetId = typeof link.target === 'string' ? link.target : (link.target as GraphNode).id;
     
@@ -51,7 +72,7 @@ export const buildGraphData = (
   
   return {
     nodes: nodesWithConnections,
-    links: filteredLinks
+    links: allLinks
   };
 };
 
@@ -99,11 +120,46 @@ const filterNodes = (
     }
     
     if (include) {
-      filteredNodes.set(id, { ...table });
+      filteredNodes.set(id, { ...table, nodeType: 'table' });
     }
   });
   
   return filteredNodes;
+};
+
+const getDashboardNodes = (
+  parsedData: ParsedData,
+  filters?: Partial<FilterOptions>
+): Map<string, GraphNode> => {
+  const dashboardNodes = new Map<string, GraphNode>();
+  const { dashboards } = parsedData;
+  
+  dashboards.forEach((dashboard, id) => {
+    let include = true;
+    
+    if (filters) {
+      if (filters.searchTerm) {
+        const searchLower = filters.searchTerm.toLowerCase();
+        include = include && (
+          dashboard.name.toLowerCase().includes(searchLower) ||
+          dashboard.id.toLowerCase().includes(searchLower) ||
+          (dashboard.owner?.toLowerCase().includes(searchLower) || false) ||
+          (dashboard.businessArea?.toLowerCase().includes(searchLower) || false)
+        );
+      }
+      
+      // If filtering by selected dashboard, only show that dashboard
+      if (filters.selectedDashboard) {
+        include = include && dashboard.id === filters.selectedDashboard;
+      }
+    }
+    
+    if (include) {
+      dashboardNodes.set(id, { ...dashboard, nodeType: 'dashboard' });
+    }
+  });
+  
+  return dashboardNodes;
 };
 
 // Get all tables directly connected to a dashboard
@@ -214,6 +270,14 @@ export const getLayerColor = (layer: string): string => {
     default:
       return '#6b7280'; // gray
   }
+};
+
+export const getNodeColor = (node: GraphNode): string => {
+  if (node.nodeType === 'dashboard') {
+    return '#8b5cf6'; // purple for dashboards
+  }
+  // For table nodes, use the existing layer color
+  return getLayerColor((node as any).layer);
 };
 
 export const getTableTypeIcon = (type: string): string => {

@@ -8,13 +8,17 @@ import ProjectTabs from './components/ProjectTabs';
 import ExcelUpload from './components/ExcelUpload';
 import DataUpload from './components/DataUpload';
 import DevLogin from './components/DevLogin';
+import DeleteConfirmDialog from './components/DeleteConfirmDialog';
+import CreateTableDialog from './components/CreateTableDialog';
+import CreateDashboardDialog, { DashboardFormData } from './components/CreateDashboardDialog';
+import DashboardDetails from './components/DashboardDetails';
 import { PortalProvider, usePortal } from './contexts/PortalContext';
 import { loadAndParseData } from './utils/dataParser';
-import { loadDataFromSupabaseProject, hasProjectData } from './services/lineageData';
-import { getAllProjects } from './services/projects';
+import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable } from './services/lineageData';
+import { getAllProjects, createProject } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
 import { buildGraphData } from './utils/graphBuilder';
-import { ParsedData, FilterOptions, Table, GraphNode, Project } from './types';
+import { ParsedData, FilterOptions, Table, GraphNode, Project, TableLineage, Dashboard, DashboardTable } from './types';
 import { Loader2, PanelLeftClose, PanelLeftOpen, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +30,7 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [selectedDashboardDetails, setSelectedDashboardDetails] = useState<Dashboard | null>(null);
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
   const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -40,6 +45,13 @@ function AppContent() {
     searchTerm: '',
     selectedDashboard: undefined
   });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tableToDelete, setTableToDelete] = useState<GraphNode | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createConnectionNode, setCreateConnectionNode] = useState<GraphNode | null>(null);
+  const [createConnectionMode, setCreateConnectionMode] = useState<'upstream' | 'downstream' | null>(null);
+  const [createDashboardDialogOpen, setCreateDashboardDialogOpen] = useState(false);
+  const [dashboardConnectionNode, setDashboardConnectionNode] = useState<GraphNode | null>(null);
 
   useEffect(() => {
     const checkAuthentication = async () => {
@@ -86,7 +98,7 @@ function AppContent() {
               setError('Iframe authentication failed: Proxy verification error');
               setLoading(false);
             }
-          } catch (err) {
+          } catch (_err) {
             setError('Iframe authentication failed: Cannot verify proxy');
             setLoading(false);
           }
@@ -116,6 +128,7 @@ function AppContent() {
     if (activeProject) {
       // Clear UI state when switching projects
       setSelectedTable(null);
+      setSelectedDashboardDetails(null);
       setHighlightedNodes(new Set());
       setSelectedDashboard(null);
       
@@ -127,6 +140,7 @@ function AppContent() {
       // No active project - clear everything
       setParsedData(null);
       setSelectedTable(null);
+      setSelectedDashboardDetails(null);
       setHighlightedNodes(new Set());
       setSelectedDashboard(null);
     }
@@ -258,9 +272,22 @@ function AppContent() {
   }, [parsedData, filters]);
 
   const handleNodeClick = (node: GraphNode) => {
-    const table = parsedData?.tables.get(node.id);
-    if (table) {
-      setSelectedTable(table);
+    if (node.nodeType === 'dashboard') {
+      // Dashboard clicked - show dashboard details panel
+      const dashboard = parsedData?.dashboards.get(node.id);
+      if (dashboard) {
+        setSelectedDashboardDetails(dashboard);
+        // Clear table selection when showing dashboard details
+        setSelectedTable(null);
+      }
+    } else {
+      // Table clicked - show table details
+      const table = parsedData?.tables.get(node.id);
+      if (table) {
+        setSelectedTable(table);
+        // Clear dashboard details when showing table details
+        setSelectedDashboardDetails(null);
+      }
     }
   };
 
@@ -268,12 +295,255 @@ function AppContent() {
     const table = parsedData?.tables.get(tableId);
     if (table) {
       setSelectedTable(table);
+      // Clear dashboard details when selecting a table
+      setSelectedDashboardDetails(null);
     }
   };
 
   const handleLogin = () => {
     setIsAuthenticated(true);
     // initializeApp() will be called automatically by the useEffect when both auth and portal are ready
+  };
+
+  const handleNodeDelete = (node: GraphNode) => {
+    setTableToDelete(node);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!tableToDelete || !activeProject) return;
+    
+    try {
+      await deleteTable(tableToDelete.id, activeProject.id);
+      
+      // Update local state
+      if (parsedData) {
+        const newTables = new Map(parsedData.tables);
+        newTables.delete(tableToDelete.id);
+        
+        const newLineages = parsedData.lineages.filter(
+          l => l.sourceTableId !== tableToDelete.id && l.targetTableId !== tableToDelete.id
+        );
+        
+        const newDashboardTables = parsedData.dashboardTables.filter(
+          dt => dt.tableId !== tableToDelete.id
+        );
+        
+        setParsedData({
+          ...parsedData,
+          tables: newTables,
+          lineages: newLineages,
+          dashboardTables: newDashboardTables
+        });
+      }
+      
+      // Clear selection if deleted table was selected
+      if (selectedTable?.id === tableToDelete.id) {
+        setSelectedTable(null);
+      }
+      
+      setDeleteDialogOpen(false);
+      setTableToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete table:', error);
+      alert('Failed to delete table. Please try again.');
+    }
+  };
+
+  const handleCreateTable = async (newTable: Table, autoConnect?: { node: GraphNode; mode: 'upstream' | 'downstream' }) => {
+    if (!activeProject) return;
+    
+    try {
+      await createTable(newTable, activeProject.id);
+      
+      // Update local state
+      if (parsedData) {
+        const newTables = new Map(parsedData.tables);
+        newTables.set(newTable.id, newTable);
+        
+        let updatedLineages = parsedData.lineages;
+        
+        // If auto-connecting to another node
+        if (autoConnect) {
+          const newLineage: TableLineage = autoConnect.mode === 'upstream' ? {
+            sourceTableId: newTable.id,
+            targetTableId: autoConnect.node.id,
+            sourceTableName: newTable.name,
+            targetTableName: autoConnect.node.name
+          } : {
+            sourceTableId: autoConnect.node.id,
+            targetTableId: newTable.id,
+            sourceTableName: autoConnect.node.name,
+            targetTableName: newTable.name
+          };
+          
+          await createLineage(newLineage, activeProject.id);
+          updatedLineages = [...parsedData.lineages, newLineage];
+        }
+        
+        setParsedData({
+          ...parsedData,
+          tables: newTables,
+          lineages: updatedLineages
+        });
+      }
+      
+      setCreateDialogOpen(false);
+      setCreateConnectionNode(null);
+      setCreateConnectionMode(null);
+    } catch (error) {
+      console.error('Failed to create table:', error);
+      alert('Failed to create table. Please try again.');
+    }
+  };
+
+  const handleNodeAddUpstream = (node: GraphNode) => {
+    setCreateConnectionNode(node);
+    setCreateConnectionMode('upstream');
+    setCreateDialogOpen(true);
+  };
+
+  const handleNodeAddDownstream = (node: GraphNode) => {
+    setCreateConnectionNode(node);
+    setCreateConnectionMode('downstream');
+    setCreateDialogOpen(true);
+  };
+
+  const handleDashboardAdd = (node: GraphNode) => {
+    setDashboardConnectionNode(node);
+    setCreateDashboardDialogOpen(true);
+  };
+
+  const handleCreateDashboard = async (dashboardData: DashboardFormData) => {
+    if (!activeProject || !dashboardConnectionNode) return;
+    
+    try {
+      // Generate unique dashboard ID
+      const dashboardId = `dashboard_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const newDashboard: Dashboard = {
+        id: dashboardId,
+        name: dashboardData.name,
+        owner: dashboardData.owner || undefined,
+        businessArea: dashboardData.businessArea || undefined,
+        link: dashboardData.link || undefined
+      };
+      
+      // Create dashboard in database
+      await createDashboard(newDashboard, activeProject.id);
+      
+      // Create dashboard-table connection
+      const dashboardTable: DashboardTable = {
+        dashboardId: dashboardId,
+        tableId: dashboardConnectionNode.id,
+        dashboardName: newDashboard.name,
+        tableName: dashboardConnectionNode.name
+      };
+      
+      await createDashboardTable(dashboardTable, activeProject.id);
+      
+      // Update local state
+      if (parsedData) {
+        const newDashboards = new Map(parsedData.dashboards);
+        newDashboards.set(dashboardId, newDashboard);
+        
+        const newDashboardTables = [...parsedData.dashboardTables, dashboardTable];
+        
+        setParsedData({
+          ...parsedData,
+          dashboards: newDashboards,
+          dashboardTables: newDashboardTables
+        });
+      }
+      
+      setCreateDashboardDialogOpen(false);
+      setDashboardConnectionNode(null);
+    } catch (error) {
+      console.error('Failed to create dashboard:', error);
+      alert('Failed to create dashboard. Please try again.');
+    }
+  };
+
+
+  // Calculate upstream and downstream counts for delete dialog
+  const getConnectionCounts = (nodeId: string) => {
+    if (!parsedData) return { upstream: 0, downstream: 0 };
+    
+    const upstream = parsedData.lineages.filter(l => l.targetTableId === nodeId).length;
+    const downstream = parsedData.lineages.filter(l => l.sourceTableId === nodeId).length;
+    
+    return { upstream, downstream };
+  };
+
+  const handleCreateBlankProject = async () => {
+    if (!isSupabaseEnabled) {
+      alert('Supabase is required for creating blank projects');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Create a new blank project
+      const newProject = await createProject({
+        name: `Blank Project ${new Date().toISOString().split('T')[0]}`,
+        description: 'New empty lineage project - start adding your nodes!',
+        portal_name: portalName?.toLowerCase() === 'measurelab' ? undefined : (portalName || undefined)
+      });
+
+      // Set up empty data structure
+      const emptyData: ParsedData = {
+        tables: new Map(),
+        lineages: [],
+        dashboards: new Map(),
+        dashboardTables: []
+      };
+
+      // Set the project as active with empty data
+      setParsedData(emptyData);
+      setActiveProject(newProject);
+      setShowUpload(false);
+      
+    } catch (error) {
+      console.error('Failed to create blank project:', error);
+      alert('Failed to create blank project. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToProjects = async () => {
+    setShowUpload(false);
+    
+    // Clear current project state
+    setParsedData(null);
+    setActiveProject(null);
+    
+    // Reinitialize the app to load available projects
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Check if we have any projects (filtered by portal if in iframe, unless admin)
+      const projects = await getAllProjects(portalName, isAdmin);
+      
+      if (projects.length === 0) {
+        // No projects exist, show upload interface
+        setShowUpload(true);
+        setLoading(false);
+        return;
+      }
+      
+      // Set the first project as active
+      setActiveProject(projects[0]);
+      
+    } catch (err) {
+      console.error('Failed to load projects:', err);
+      setError('Failed to load projects. Please try refreshing the page.');
+      setShowUpload(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Show login screen if not authenticated
@@ -306,14 +576,19 @@ function AppContent() {
                   Switch to CSV Upload
                 </Button>
               )}
-              {activeProject && (
-                <Button
-                  variant="outline"
-                  onClick={() => setShowUpload(false)}
-                >
-                  Back to Visualization
-                </Button>
-              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleCreateBlankProject}
+              >
+                Create blank project
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleBackToProjects}
+              >
+                Back to projects
+              </Button>
             </div>
           </div>
         </div>
@@ -452,6 +727,7 @@ function AppContent() {
           </div>
 
           <div className="flex-1 relative bg-muted/5">
+            
             {/* Loading overlay when switching projects */}
             {loading && (
               <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-30 flex items-center justify-center">
@@ -479,6 +755,10 @@ function AppContent() {
             <LineageGraph
               data={graphData}
               onNodeClick={handleNodeClick}
+              onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
+              onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
+              onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
+              onDashboardAdd={isSupabaseEnabled && activeProject ? handleDashboardAdd : undefined}
               highlightedNodes={highlightedNodes}
               focusedNodeId={selectedTable?.id}
             />
@@ -486,25 +766,48 @@ function AppContent() {
             {graphData.nodes.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-muted-foreground text-lg">No tables match the current filters</p>
-                  <Button
-                    onClick={() => {
-                      setFilters({
-                        datasets: [],
-                        layers: [],
-                        tableTypes: [],
-                        showScheduledOnly: false,
-                        searchTerm: '',
-                        selectedDashboard: undefined
-                      });
-                      setSelectedDashboard(null);
-                      setHighlightedNodes(new Set());
-                    }}
-                    variant="link"
-                    className="mt-2"
-                  >
-                    Clear filters
-                  </Button>
+                  {/* Check if this is truly empty or just filtered */}
+                  {parsedData && parsedData.tables.size === 0 ? (
+                    // Truly empty project
+                    <div>
+                      <p className="text-muted-foreground text-lg mb-4">Your lineage is empty</p>
+                      <p className="text-sm text-muted-foreground mb-6">Start by adding your first table or dashboard node</p>
+                      {isSupabaseEnabled && activeProject && (
+                        <div className="flex gap-2 justify-center">
+                          <Button
+                            onClick={() => setCreateDialogOpen(true)}
+                            className="shadow-md"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Add first table
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // Filtered out
+                    <div>
+                      <p className="text-muted-foreground text-lg">No tables match the current filters</p>
+                      <Button
+                        onClick={() => {
+                          setFilters({
+                            datasets: [],
+                            layers: [],
+                            tableTypes: [],
+                            showScheduledOnly: false,
+                            searchTerm: '',
+                            selectedDashboard: undefined
+                          });
+                          setSelectedDashboard(null);
+                          setHighlightedNodes(new Set());
+                        }}
+                        variant="link"
+                        className="mt-2"
+                      >
+                        Clear filters
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -517,6 +820,52 @@ function AppContent() {
           isOpen={!!selectedTable}
           onClose={() => setSelectedTable(null)}
           onTableSelect={handleTableSelect}
+        />
+
+        <DashboardDetails
+          dashboard={selectedDashboardDetails}
+          parsedData={parsedData}
+          isOpen={!!selectedDashboardDetails}
+          onClose={() => setSelectedDashboardDetails(null)}
+          onTableSelect={handleTableSelect}
+        />
+        
+        {/* Delete confirmation dialog */}
+        <DeleteConfirmDialog
+          table={tableToDelete}
+          isOpen={deleteDialogOpen}
+          onClose={() => {
+            setDeleteDialogOpen(false);
+            setTableToDelete(null);
+          }}
+          onConfirm={confirmDelete}
+          upstreamCount={tableToDelete ? getConnectionCounts(tableToDelete.id).upstream : 0}
+          downstreamCount={tableToDelete ? getConnectionCounts(tableToDelete.id).downstream : 0}
+        />
+        
+        {/* Create table dialog */}
+        <CreateTableDialog
+          isOpen={createDialogOpen}
+          onClose={() => {
+            setCreateDialogOpen(false);
+            setCreateConnectionNode(null);
+            setCreateConnectionMode(null);
+          }}
+          onConfirm={handleCreateTable}
+          existingTableIds={new Set(parsedData?.tables.keys() || [])}
+          connectionNode={createConnectionNode || undefined}
+          connectionMode={createConnectionMode || undefined}
+        />
+        
+        {/* Create dashboard dialog */}
+        <CreateDashboardDialog
+          isOpen={createDashboardDialogOpen}
+          onClose={() => {
+            setCreateDashboardDialogOpen(false);
+            setDashboardConnectionNode(null);
+          }}
+          onConfirm={handleCreateDashboard}
+          sourceNode={dashboardConnectionNode}
         />
       </div>
     </div>
