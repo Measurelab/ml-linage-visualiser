@@ -48,7 +48,7 @@ const DataUpload: React.FC<DataUploadProps> = ({ onUploadComplete, isSupabaseEna
   ) => {
     const content = await file.text();
     
-    let state: FileUploadState = {
+    const state: FileUploadState = {
       file,
       content,
       isValid: false,

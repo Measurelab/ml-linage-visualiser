@@ -13,10 +13,25 @@ const Legend: React.FC = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 pt-2">
+        {/* Node Types */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-1">Node types</p>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-primary rounded-full"></div>
+              <span className="text-xs">Tables</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-2 bg-purple-500 rounded-sm"></div>
+              <span className="text-xs">Dashboards</span>
+            </div>
+          </div>
+        </div>
+
         {/* Layers and Indicators in one row */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Layers</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Table layers</p>
             <div className="space-y-1">
               <Badge variant="success" className="text-xs py-0 px-1 block w-fit">Raw</Badge>
               <Badge variant="info" className="text-xs py-0 px-1 block w-fit">Inter</Badge>
@@ -42,10 +57,10 @@ const Legend: React.FC = () => {
           </div>
         </div>
         
-        {/* Note about table types */}
+        {/* Note about interactions */}
         <div>
           <p className="text-xs text-muted-foreground">
-            <strong>Table types:</strong> Hover nodes to see Table/View/Query/Sheet info
+            <strong>Click tables</strong> to view details • <strong>Click dashboards</strong> to see connected sources • <strong>Right-click</strong> to add/delete nodes
           </p>
         </div>
       </CardContent>

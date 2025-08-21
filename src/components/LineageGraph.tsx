@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { GraphData, GraphNode, GraphLink } from '../types';
-import { getLayerColor } from '../utils/graphBuilder';
+import { getNodeColor } from '../utils/graphBuilder';
 
 interface LineageGraphProps {
   data: GraphData;
@@ -9,6 +9,7 @@ interface LineageGraphProps {
   onNodeDelete?: (node: GraphNode) => void;
   onNodeAddUpstream?: (node: GraphNode) => void;
   onNodeAddDownstream?: (node: GraphNode) => void;
+  onDashboardAdd?: (node: GraphNode) => void;
   highlightedNodes?: Set<string>;
   focusedNodeId?: string;
   width?: number;
@@ -21,6 +22,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   onNodeDelete,
   onNodeAddUpstream,
   onNodeAddDownstream,
+  onDashboardAdd,
   highlightedNodes = new Set(),
   focusedNodeId,
   width = window.innerWidth,
@@ -37,13 +39,20 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
 
   // Function to calculate node size based on connection count
   const getNodeRadius = (node: GraphNode): number => {
+    // Dashboard nodes get a static size
+    if (node.nodeType === 'dashboard') {
+      return 15; // Fixed size for dashboards
+    }
+    
+    // For table nodes, use connection-based sizing
     const baseRadius = 8;
     const maxRadius = 20;
     const minRadius = 6;
     const connectionCount = node.connectionCount || 0;
     
-    // Find the maximum connection count in the dataset for scaling
-    const maxConnections = Math.max(...data.nodes.map(n => n.connectionCount || 0));
+    // Find the maximum connection count among table nodes for scaling
+    const tableNodes = data.nodes.filter(n => n.nodeType === 'table');
+    const maxConnections = Math.max(...tableNodes.map(n => n.connectionCount || 0));
     
     let radius;
     if (maxConnections === 0) {
@@ -54,8 +63,8 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       radius = minRadius + (scale * (maxRadius - minRadius));
     }
     
-    // Add bonus for scheduled queries
-    if (node.isScheduledQuery) {
+    // Add bonus for scheduled queries (table nodes only)
+    if ((node as any).isScheduledQuery) {
       radius += 2;
     }
     
@@ -241,32 +250,42 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .call(d3.drag<SVGGElement, GraphNode>()
         .on('start', dragstarted)
         .on('drag', dragged)
-        .on('end', dragended));
+        .on('end', dragended)) as d3.Selection<SVGGElement, GraphNode, SVGGElement, unknown>;
 
-    node.append('circle')
-      .attr('r', d => getNodeRadius(d))
-      .attr('fill', d => getLayerColor(d.layer))
-      .attr('stroke', d => {
-        if (selectedNode === d.id) return '#1f2937';
-        if (highlightedNodes.has(d.id)) return '#ef4444';
-        return '#fff';
-      })
-      .attr('stroke-width', d => {
-        if (selectedNode === d.id) return 3;
-        if (highlightedNodes.has(d.id)) return 2;
-        return 1.5;
-      })
-      .attr('opacity', d => {
-        if (highlightedNodes.size === 0) return 1;
-        return highlightedNodes.has(d.id) ? 1 : 0.3;
-      });
+    // Add different shapes for different node types
+    node.each(function(d) {
+      const nodeGroup = d3.select(this);
+      
+      if (d.nodeType === 'dashboard') {
+        // Rectangle for dashboards
+        nodeGroup.append('rect')
+          .attr('width', getNodeRadius(d) * 2)
+          .attr('height', getNodeRadius(d) * 1.5)
+          .attr('x', -getNodeRadius(d))
+          .attr('y', -getNodeRadius(d) * 0.75)
+          .attr('rx', 4) // rounded corners
+          .attr('fill', getNodeColor(d))
+          .attr('stroke', selectedNode === d.id ? '#1f2937' : highlightedNodes.has(d.id) ? '#ef4444' : '#fff')
+          .attr('stroke-width', selectedNode === d.id ? 3 : highlightedNodes.has(d.id) ? 2 : 1.5)
+          .attr('opacity', highlightedNodes.size === 0 ? 1 : highlightedNodes.has(d.id) ? 1 : 0.3);
+      } else {
+        // Circle for tables
+        nodeGroup.append('circle')
+          .attr('r', getNodeRadius(d))
+          .attr('fill', getNodeColor(d))
+          .attr('stroke', selectedNode === d.id ? '#1f2937' : highlightedNodes.has(d.id) ? '#ef4444' : '#fff')
+          .attr('stroke-width', selectedNode === d.id ? 3 : highlightedNodes.has(d.id) ? 2 : 1.5)
+          .attr('opacity', highlightedNodes.size === 0 ? 1 : highlightedNodes.has(d.id) ? 1 : 0.3);
+      }
+    });
 
-    if (data.nodes.some(d => d.isScheduledQuery)) {
-      node.filter(d => d.isScheduledQuery)
+    // Add scheduled query indicator for table nodes
+    if (data.nodes.some(d => d.nodeType === 'table' && (d as any).isScheduledQuery)) {
+      node.filter(d => d.nodeType === 'table' && (d as any).isScheduledQuery)
         .append('circle')
         .attr('r', d => getNodeRadius(d) + 3)
         .attr('fill', 'none')
-        .attr('stroke', d => getLayerColor(d.layer))
+        .attr('stroke', d => getNodeColor(d))
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '2,2')
         .attr('opacity', 0.5);
@@ -293,16 +312,26 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .style('box-shadow', '0 2px 4px rgba(0,0,0,0.1)');
 
     node.on('mouseover', function(_event, d) {
-      tooltip.style('visibility', 'visible')
-        .html(`
+      const tooltipContent = d.nodeType === 'dashboard' 
+        ? `
+          <strong>${d.name}</strong><br/>
+          <em>Dashboard</em><br/>
+          ID: ${d.id}<br/>
+          ${(d as any).owner ? `Owner: ${(d as any).owner}<br/>` : ''}
+          ${(d as any).businessArea ? `Business Area: ${(d as any).businessArea}<br/>` : ''}
+          ${(d as any).link ? `<a href="${(d as any).link}" target="_blank">View Dashboard</a><br/>` : ''}
+        `
+        : `
           <strong>${d.name}</strong><br/>
           ID: ${d.id}<br/>
-          Dataset: ${d.dataset}<br/>
-          Layer: ${d.layer}<br/>
-          Type: ${d.tableType}<br/>
-          ${d.isScheduledQuery ? '<em>Scheduled query</em><br/>' : ''}
-          ${d.description ? `Description: ${d.description}` : ''}
-        `);
+          Dataset: ${(d as any).dataset}<br/>
+          Layer: ${(d as any).layer}<br/>
+          Type: ${(d as any).tableType}<br/>
+          ${(d as any).isScheduledQuery ? '<em>Scheduled query</em><br/>' : ''}
+          ${(d as any).description ? `Description: ${(d as any).description}` : ''}
+        `;
+      
+      tooltip.style('visibility', 'visible').html(tooltipContent);
     })
     .on('mousemove', function(event) {
       tooltip.style('top', (event.pageY - 10) + 'px')
@@ -384,7 +413,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
 
   // Handle context menu click outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = () => {
       if (contextMenu) {
         setContextMenu(null);
       }
@@ -505,6 +534,17 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
               >
                 Add downstream table
               </button>
+              {onDashboardAdd && contextMenu.node.nodeType === 'table' && (
+                <button
+                  className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+                  onClick={() => {
+                    onDashboardAdd(contextMenu.node);
+                    setContextMenu(null);
+                  }}
+                >
+                  Add connected dashboard
+                </button>
+              )}
               <div className="border-t my-1" />
               <button
                 className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2 text-destructive"
@@ -513,7 +553,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
                   setContextMenu(null);
                 }}
               >
-                Delete table
+                {contextMenu.node.nodeType === 'dashboard' ? 'Delete dashboard' : 'Delete table'}
               </button>
             </>
           )}

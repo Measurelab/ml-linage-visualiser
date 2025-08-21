@@ -10,10 +10,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AlertTriangle } from 'lucide-react';
-import { Table } from '../types';
+import { GraphNode } from '../types';
 
 interface DeleteConfirmDialogProps {
-  table: Table | null;
+  table: GraphNode | null;
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -31,6 +31,7 @@ const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
 }) => {
   if (!table) return null;
 
+  const isTable = table.nodeType === 'table';
   const totalConnections = upstreamCount + downstreamCount;
 
   return (
@@ -39,27 +40,27 @@ const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            Delete table confirmation
+            Delete {isTable ? 'table' : 'dashboard'} confirmation
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-3">
             <p>
-              Are you sure you want to delete the table <strong>{table.name}</strong>?
+              Are you sure you want to delete the {isTable ? 'table' : 'dashboard'} <strong>{table.name}</strong>?
             </p>
             {totalConnections > 0 && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 space-y-1">
                 <p className="font-semibold text-destructive">
-                  Warning: This table has {totalConnections} connection{totalConnections !== 1 ? 's' : ''}
+                  Warning: This {isTable ? 'table' : 'dashboard'} has {totalConnections} connection{totalConnections !== 1 ? 's' : ''}
                 </p>
                 <ul className="text-sm space-y-1 ml-4">
                   {upstreamCount > 0 && (
-                    <li>• {upstreamCount} upstream table{upstreamCount !== 1 ? 's' : ''}</li>
+                    <li>• {upstreamCount} upstream connection{upstreamCount !== 1 ? 's' : ''}</li>
                   )}
                   {downstreamCount > 0 && (
-                    <li>• {downstreamCount} downstream table{downstreamCount !== 1 ? 's' : ''}</li>
+                    <li>• {downstreamCount} downstream connection{downstreamCount !== 1 ? 's' : ''}</li>
                   )}
                 </ul>
                 <p className="text-sm mt-2">
-                  All lineage relationships will be permanently removed.
+                  All {isTable ? 'lineage' : 'dashboard'} relationships will be permanently removed.
                 </p>
               </div>
             )}
@@ -74,7 +75,7 @@ const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
             onClick={onConfirm}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            Delete table
+            Delete {isTable ? 'table' : 'dashboard'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

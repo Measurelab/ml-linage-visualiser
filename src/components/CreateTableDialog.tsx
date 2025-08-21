@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Table, LayerType, TableType, GraphNode } from '../types';
-import { AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 
 interface CreateTableDialogProps {
   isOpen: boolean;

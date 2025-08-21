@@ -425,3 +425,107 @@ export const deleteLineage = async (sourceTableId: string, targetTableId: string
   
   console.log(`✅ Deleted lineage from ${sourceTableId} to ${targetTableId}`);
 };
+
+// Create a new dashboard
+export const createDashboard = async (dashboard: Dashboard, projectId: string): Promise<void> => {
+  if (!supabase) throw new Error('Supabase client not initialized');
+  
+  const dashboardData = {
+    id: dashboard.id,
+    name: dashboard.name,
+    link: dashboard.link,
+    owner: dashboard.owner,
+    business_area: dashboard.businessArea,
+    project_id: projectId
+  };
+  
+  const { error } = await supabase
+    .from('dashboards')
+    .insert(dashboardData);
+  
+  if (error) {
+    console.error('Error creating dashboard:', error);
+    throw error;
+  }
+  
+  console.log(`✅ Created dashboard ${dashboard.id}`);
+};
+
+// Delete a dashboard and all its relationships
+export const deleteDashboard = async (dashboardId: string, projectId: string): Promise<void> => {
+  if (!supabase) throw new Error('Supabase client not initialized');
+  
+  // Delete dashboard-table mappings first
+  const { error: mappingError } = await supabase
+    .from('dashboard_tables')
+    .delete()
+    .eq('dashboard_id', dashboardId)
+    .eq('project_id', projectId);
+  
+  if (mappingError) {
+    console.error('Error deleting dashboard-table mappings:', mappingError);
+    throw mappingError;
+  }
+  
+  // Delete the dashboard itself
+  const { error: dashboardError } = await supabase
+    .from('dashboards')
+    .delete()
+    .eq('id', dashboardId)
+    .eq('project_id', projectId);
+  
+  if (dashboardError) {
+    console.error('Error deleting dashboard:', dashboardError);
+    throw dashboardError;
+  }
+  
+  console.log(`✅ Deleted dashboard ${dashboardId} and all its relationships`);
+};
+
+// Update an existing dashboard
+export const updateDashboard = async (dashboardId: string, updates: Partial<Dashboard>, projectId: string): Promise<void> => {
+  if (!supabase) throw new Error('Supabase client not initialized');
+  
+  const updateData: any = {};
+  if (updates.name !== undefined) updateData.name = updates.name;
+  if (updates.link !== undefined) updateData.link = updates.link;
+  if (updates.owner !== undefined) updateData.owner = updates.owner;
+  if (updates.businessArea !== undefined) updateData.business_area = updates.businessArea;
+  
+  const { error } = await supabase
+    .from('dashboards')
+    .update(updateData)
+    .eq('id', dashboardId)
+    .eq('project_id', projectId);
+  
+  if (error) {
+    console.error('Error updating dashboard:', error);
+    throw error;
+  }
+  
+  console.log(`✅ Updated dashboard ${dashboardId}`);
+};
+
+// Create a dashboard-table connection
+export const createDashboardTable = async (dashboardTable: DashboardTable, projectId: string): Promise<void> => {
+  if (!supabase) throw new Error('Supabase client not initialized');
+  
+  const mappingData = {
+    dashboard_id: dashboardTable.dashboardId,
+    table_id: dashboardTable.tableId,
+    dashboard_name: dashboardTable.dashboardName,
+    table_name: dashboardTable.tableName,
+    project_id: projectId
+  };
+  
+  const { error } = await supabase
+    .from('dashboard_tables')
+    .insert(mappingData);
+  
+  if (error) {
+    console.error('Error creating dashboard-table mapping:', error);
+    throw error;
+  }
+  
+  console.log(`✅ Created dashboard-table mapping from ${dashboardTable.dashboardId} to ${dashboardTable.tableId}`);
+};
