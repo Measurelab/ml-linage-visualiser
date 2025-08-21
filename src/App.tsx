@@ -17,7 +17,7 @@ import { getAllProjects } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
 import { buildGraphData } from './utils/graphBuilder';
 import { ParsedData, FilterOptions, Table, GraphNode, Project, TableLineage } from './types';
-import { Loader2, PanelLeftClose, PanelLeftOpen, Upload, Plus, Link2 } from 'lucide-react';
+import { Loader2, PanelLeftClose, PanelLeftOpen, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -45,7 +45,6 @@ function AppContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tableToDelete, setTableToDelete] = useState<GraphNode | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [connectionMode, setConnectionMode] = useState(false);
   const [createConnectionNode, setCreateConnectionNode] = useState<GraphNode | null>(null);
   const [createConnectionMode, setCreateConnectionMode] = useState<'upstream' | 'downstream' | null>(null);
 
@@ -388,33 +387,6 @@ function AppContent() {
     setCreateDialogOpen(true);
   };
 
-  const handleConnectionCreate = async (source: GraphNode, target: GraphNode) => {
-    if (!activeProject) return;
-    
-    const newLineage: TableLineage = {
-      sourceTableId: source.id,
-      targetTableId: target.id,
-      sourceTableName: source.name,
-      targetTableName: target.name
-    };
-    
-    try {
-      await createLineage(newLineage, activeProject.id);
-      
-      // Update local state
-      if (parsedData) {
-        setParsedData({
-          ...parsedData,
-          lineages: [...parsedData.lineages, newLineage]
-        });
-      }
-      
-      setConnectionMode(false);
-    } catch (error) {
-      console.error('Failed to create connection:', error);
-      alert('Failed to create connection. Please try again.');
-    }
-  };
 
   // Calculate upstream and downstream counts for delete dialog
   const getConnectionCounts = (nodeId: string) => {
@@ -602,30 +574,6 @@ function AppContent() {
           </div>
 
           <div className="flex-1 relative bg-muted/5">
-            {/* Toolbar */}
-            <div className="absolute top-4 right-4 z-20 flex gap-2">
-              {isSupabaseEnabled && activeProject && (
-                <>
-                  <Button
-                    size="sm"
-                    onClick={() => setCreateDialogOpen(true)}
-                    className="shadow-md"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add table
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={connectionMode ? 'destructive' : 'outline'}
-                    onClick={() => setConnectionMode(!connectionMode)}
-                    className="shadow-md"
-                  >
-                    <Link2 className="h-4 w-4 mr-2" />
-                    {connectionMode ? 'Cancel connection' : 'Create connection'}
-                  </Button>
-                </>
-              )}
-            </div>
             
             {/* Loading overlay when switching projects */}
             {loading && (
@@ -659,8 +607,6 @@ function AppContent() {
               onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
               highlightedNodes={highlightedNodes}
               focusedNodeId={selectedTable?.id}
-              connectionMode={connectionMode}
-              onConnectionCreate={handleConnectionCreate}
             />
             
             {graphData.nodes.length === 0 && (

@@ -13,8 +13,6 @@ interface LineageGraphProps {
   focusedNodeId?: string;
   width?: number;
   height?: number;
-  connectionMode?: boolean;
-  onConnectionCreate?: (source: GraphNode, target: GraphNode) => void;
 }
 
 const LineageGraph: React.FC<LineageGraphProps> = ({
@@ -26,16 +24,16 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   highlightedNodes = new Set(),
   focusedNodeId,
   width = window.innerWidth,
-  height = window.innerHeight - 200,
-  connectionMode = false,
-  onConnectionCreate
+  height = window.innerHeight - 200
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [connectionSource, setConnectionSource] = useState<GraphNode | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
+  const [isLayoutFrozen, setIsLayoutFrozen] = useState(false);
+  const positionsRef = useRef<Map<string, {x: number, y: number}>>(new Map());
 
   // Function to calculate node size based on connection count
   const getNodeRadius = (node: GraphNode): number => {
@@ -92,8 +90,60 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   useEffect(() => {
     if (!svgRef.current || !data.nodes.length) return;
 
+    // Store current zoom transform before clearing
+    let currentTransform = d3.zoomIdentity;
+    if (gRef.current) {
+      const transform = d3.zoomTransform(gRef.current.node()!);
+      if (transform) {
+        currentTransform = transform;
+      }
+    }
+
+    // Store positions before clearing if layout was frozen
+    if (isLayoutFrozen) {
+      data.nodes.forEach(node => {
+        if (node.x !== undefined && node.y !== undefined) {
+          positionsRef.current.set(node.id, { x: node.x, y: node.y });
+        }
+      });
+    }
+
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
+
+    // Restore positions if we had them stored, and position new nodes near their connections
+    data.nodes.forEach(node => {
+      const stored = positionsRef.current.get(node.id);
+      if (stored && isLayoutFrozen) {
+        node.x = stored.x;
+        node.y = stored.y;
+        node.fx = stored.x; // Fix in place
+        node.fy = stored.y;
+      } else if (isLayoutFrozen && !stored) {
+        // This is a new node - try to position it near a connected node
+        const connectedLink = data.links.find(link => 
+          (typeof link.source === 'string' ? link.source : link.source.id) === node.id ||
+          (typeof link.target === 'string' ? link.target : link.target.id) === node.id
+        );
+        
+        if (connectedLink) {
+          // Find the connected node that already has a position
+          const connectedNodeId = (typeof connectedLink.source === 'string' ? connectedLink.source : connectedLink.source.id) === node.id
+            ? (typeof connectedLink.target === 'string' ? connectedLink.target : connectedLink.target.id)
+            : (typeof connectedLink.source === 'string' ? connectedLink.source : connectedLink.source.id);
+          
+          const connectedPosition = positionsRef.current.get(connectedNodeId);
+          if (connectedPosition) {
+            // Position new node near the connected node with some random offset
+            const angle = Math.random() * 2 * Math.PI;
+            const distance = 80 + Math.random() * 40; // 80-120px away
+            node.x = connectedPosition.x + Math.cos(angle) * distance;
+            node.y = connectedPosition.y + Math.sin(angle) * distance;
+            // Don't fix new nodes immediately - let them settle briefly
+          }
+        }
+      }
+    });
 
     const g = svg.append('g');
     gRef.current = g; // Store reference
@@ -107,13 +157,59 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     zoomRef.current = zoom; // Store reference
     svg.call(zoom);
 
+    // Restore the previous zoom transform (only if it's not the default identity transform)
+    if (currentTransform.k !== 1 || currentTransform.x !== 0 || currentTransform.y !== 0) {
+      svg.call(zoom.transform, currentTransform);
+    }
+
     const simulation = d3.forceSimulation<GraphNode>(data.nodes)
       .force('link', d3.forceLink<GraphNode, GraphLink>(data.links)
         .id(d => d.id)
         .distance(100))
-      .force('charge', d3.forceManyBody().strength(-300))
-      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('charge', d3.forceManyBody().strength(isLayoutFrozen ? -50 : -300)) // Weaker forces when frozen
+      .force('center', isLayoutFrozen ? null : d3.forceCenter(width / 2, height / 2)) // No centering when frozen
       .force('collision', d3.forceCollide().radius(30));
+
+    simulationRef.current = simulation;
+
+    // If frozen, use minimal simulation energy
+    if (isLayoutFrozen) {
+      simulation.alpha(0.2).alphaDecay(0.05); // Slightly more energy for new nodes to settle
+      
+      // After a short time, fix any new nodes that have settled
+      setTimeout(() => {
+        data.nodes.forEach(node => {
+          if (!positionsRef.current.has(node.id) && node.x !== undefined && node.y !== undefined) {
+            // This is a new node that has settled - fix it in place
+            positionsRef.current.set(node.id, { x: node.x, y: node.y });
+            node.fx = node.x;
+            node.fy = node.y;
+          }
+        });
+        if (simulationRef.current) {
+          simulationRef.current.alpha(0.01); // Reduce to minimal energy
+        }
+      }, 1500); // Give new nodes 1.5 seconds to settle
+    }
+
+    // Auto-freeze after initial layout (4 seconds for new layouts)
+    if (!isLayoutFrozen) {
+      setTimeout(() => {
+        if (simulationRef.current) {
+          // Save all current positions
+          data.nodes.forEach(node => {
+            if (node.x !== undefined && node.y !== undefined) {
+              positionsRef.current.set(node.id, { x: node.x, y: node.y });
+              node.fx = node.x; // Fix nodes in place
+              node.fy = node.y;
+            }
+          });
+          
+          simulationRef.current.stop();
+          setIsLayoutFrozen(true);
+        }
+      }, 4000);
+    }
 
     const link = g.append('g')
       .selectAll('line')
@@ -217,21 +313,9 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     })
     .on('click', function(event, d) {
       event.stopPropagation();
-      
-      if (connectionMode) {
-        if (!connectionSource) {
-          setConnectionSource(d);
-        } else if (connectionSource.id !== d.id) {
-          if (onConnectionCreate) {
-            onConnectionCreate(connectionSource, d);
-          }
-          setConnectionSource(null);
-        }
-      } else {
-        setSelectedNode(d.id);
-        if (onNodeClick) {
-          onNodeClick(d);
-        }
+      setSelectedNode(d.id);
+      if (onNodeClick) {
+        onNodeClick(d);
       }
     })
     .on('contextmenu', function(event, d) {
@@ -283,7 +367,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       simulation.stop();
       tooltip.remove();
     };
-  }, [data, highlightedNodes, selectedNode, onNodeClick, onNodeDelete, width, height, connectionMode, connectionSource, onConnectionCreate]);
+  }, [data, highlightedNodes, selectedNode, onNodeClick, onNodeDelete, onNodeAddUpstream, onNodeAddDownstream, width, height]);
 
   // Handle focusing on a specific node when focusedNodeId changes
   useEffect(() => {
@@ -297,12 +381,6 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     }
   }, [focusedNodeId]);
 
-  // Clear connection source when connection mode is disabled
-  useEffect(() => {
-    if (!connectionMode) {
-      setConnectionSource(null);
-    }
-  }, [connectionMode]);
 
   // Handle context menu click outside
   useEffect(() => {
@@ -318,21 +396,70 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     }
   }, [contextMenu]);
 
+  // Function to reorganize layout (unfreeze)
+  const reorganizeLayout = () => {
+    if (!simulationRef.current) return;
+    
+    // Clear stored positions
+    positionsRef.current.clear();
+    setIsLayoutFrozen(false);
+    
+    // Release all nodes and restart simulation
+    data.nodes.forEach(node => {
+      node.fx = undefined;
+      node.fy = undefined;
+    });
+    
+    // Restart simulation with full energy
+    simulationRef.current
+      .force('charge', d3.forceManyBody().strength(-300))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .alpha(0.7)
+      .restart();
+    
+    // Auto-freeze again after 4 seconds
+    setTimeout(() => {
+      if (simulationRef.current) {
+        data.nodes.forEach(node => {
+          if (node.x !== undefined && node.y !== undefined) {
+            positionsRef.current.set(node.id, { x: node.x, y: node.y });
+            node.fx = node.x;
+            node.fy = node.y;
+          }
+        });
+        
+        simulationRef.current.stop();
+        setIsLayoutFrozen(true);
+      }
+    }, 4000);
+  };
+
   return (
     <div className="w-full h-full relative">
       <svg
         ref={svgRef}
         width={width}
         height={height}
-        className={`w-full h-full ${connectionMode ? 'cursor-crosshair' : ''}`}
+        className="w-full h-full"
       />
       
-      {/* Connection mode indicator */}
-      {connectionMode && connectionSource && (
-        <div className="absolute top-4 right-4 bg-primary text-primary-foreground px-3 py-2 rounded-md shadow-lg">
-          <p className="text-sm font-medium">
-            Select target table for: <strong>{connectionSource.name}</strong>
-          </p>
+      {/* Layout control */}
+      <div className="absolute top-4 left-20 z-20">
+        <button
+          className="px-3 py-1 text-xs rounded-md shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+          onClick={reorganizeLayout}
+          title="Reorganize the layout of all nodes"
+        >
+          {isLayoutFrozen ? 'Reorganize layout' : 'Organizing...'}
+        </button>
+      </div>
+      
+      {/* Layout status indicator */}
+      {!isLayoutFrozen && (
+        <div className="absolute top-4 left-40 z-20">
+          <div className="px-2 py-1 text-xs rounded-md bg-blue-100 text-blue-800 border">
+            Layout organizing...
+          </div>
         </div>
       )}
       
