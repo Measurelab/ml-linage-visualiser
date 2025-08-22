@@ -420,17 +420,33 @@ function AppContent() {
           await createLineage(newLineage, activeProject.id);
           updatedLineages = [...parsedData.lineages, newLineage];
         }
+
+        // If connecting to a dashboard
+        let updatedDashboardTables = parsedData.dashboardTables;
+        if (dashboardConnectionNode && dashboardConnectionNode.nodeType === 'dashboard') {
+          const dashboardTable: DashboardTable = {
+            dashboardId: dashboardConnectionNode.id,
+            tableId: newTable.id,
+            dashboardName: dashboardConnectionNode.name,
+            tableName: newTable.name
+          };
+          
+          await createDashboardTable(dashboardTable, activeProject.id);
+          updatedDashboardTables = [...parsedData.dashboardTables, dashboardTable];
+        }
         
         setParsedData({
           ...parsedData,
           tables: newTables,
-          lineages: updatedLineages
+          lineages: updatedLineages,
+          dashboardTables: updatedDashboardTables
         });
       }
       
       setCreateDialogOpen(false);
       setCreateConnectionNode(null);
       setCreateConnectionMode(null);
+      setDashboardConnectionNode(null); // Clear dashboard connection
       setCanvasClickPosition(null); // Clear position after use
     } catch (error) {
       console.error('Failed to create table:', error);
@@ -439,20 +455,135 @@ function AppContent() {
   };
 
   const handleNodeAddUpstream = (node: GraphNode) => {
-    setCreateConnectionNode(node);
-    setCreateConnectionMode('upstream');
-    setCreateDialogOpen(true);
+    console.log('handleNodeAddUpstream called with:', node);
+    try {
+      setCreateConnectionNode(node);
+      setCreateConnectionMode('upstream');
+      setCreateDialogOpen(true);
+    } catch (error) {
+      console.error('Error in handleNodeAddUpstream:', error);
+    }
   };
 
   const handleNodeAddDownstream = (node: GraphNode) => {
-    setCreateConnectionNode(node);
-    setCreateConnectionMode('downstream');
-    setCreateDialogOpen(true);
+    console.log('handleNodeAddDownstream called with:', node);
+    try {
+      setCreateConnectionNode(node);
+      setCreateConnectionMode('downstream');
+      setCreateDialogOpen(true);
+    } catch (error) {
+      console.error('Error in handleNodeAddDownstream:', error);
+    }
   };
 
   const handleDashboardAdd = (node: GraphNode) => {
-    setDashboardConnectionNode(node);
-    setCreateDashboardDialogOpen(true);
+    console.log('handleDashboardAdd called with:', node);
+    try {
+      setDashboardConnectionNode(node);
+      setCreateDashboardDialogOpen(true);
+    } catch (error) {
+      console.error('Error in handleDashboardAdd:', error);
+    }
+  };
+
+  const handleTableAddToDashboard = (dashboard: Dashboard) => {
+    console.log('handleTableAddToDashboard called with:', dashboard);
+    try {
+      // Convert dashboard to GraphNode and use existing table creation flow
+      const dashboardNode: GraphNode = { ...dashboard, nodeType: 'dashboard' };
+      setDashboardConnectionNode(dashboardNode);
+      setCreateDialogOpen(true);
+    } catch (error) {
+      console.error('Error in handleTableAddToDashboard:', error);
+    }
+  };
+
+  // Connection handlers for existing nodes
+  const handleConnectUpstreamTable = async (sourceTableId: string, targetTableId: string) => {
+    console.log('handleConnectUpstreamTable:', sourceTableId, '->', targetTableId);
+    if (!activeProject || !parsedData) return;
+    
+    try {
+      // Get table names from parsedData
+      const sourceTable = parsedData.tables.get(sourceTableId);
+      const targetTable = parsedData.tables.get(targetTableId);
+      
+      if (!sourceTable || !targetTable) {
+        console.error('Source or target table not found:', { sourceTableId, targetTableId });
+        alert('Unable to find table information. Please try again.');
+        return;
+      }
+
+      await createLineage({
+        sourceTableId,
+        targetTableId,
+        sourceTableName: sourceTable.name,
+        targetTableName: targetTable.name
+      }, activeProject.id);
+      
+      // Reload data to reflect the new connection
+      const updatedData = await loadDataFromSupabaseProject(activeProject.id);
+      if (updatedData) {
+        setParsedData(updatedData);
+      }
+    } catch (error) {
+      console.error('Error connecting upstream table:', error);
+      alert('Failed to connect tables. Please try again.');
+    }
+  };
+
+  const handleConnectDownstreamTable = async (sourceTableId: string, targetTableId: string) => {
+    console.log('handleConnectDownstreamTable:', sourceTableId, '->', targetTableId);
+    if (!activeProject || !parsedData) return;
+    
+    try {
+      // Get table names from parsedData
+      const sourceTable = parsedData.tables.get(sourceTableId);
+      const targetTable = parsedData.tables.get(targetTableId);
+      
+      if (!sourceTable || !targetTable) {
+        console.error('Source or target table not found:', { sourceTableId, targetTableId });
+        alert('Unable to find table information. Please try again.');
+        return;
+      }
+
+      await createLineage({
+        sourceTableId,
+        targetTableId,
+        sourceTableName: sourceTable.name,
+        targetTableName: targetTable.name
+      }, activeProject.id);
+      
+      // Reload data to reflect the new connection
+      const updatedData = await loadDataFromSupabaseProject(activeProject.id);
+      if (updatedData) {
+        setParsedData(updatedData);
+      }
+    } catch (error) {
+      console.error('Error connecting downstream table:', error);
+      alert('Failed to connect tables. Please try again.');
+    }
+  };
+
+  const handleConnectTableToDashboard = async (tableId: string, dashboardId: string) => {
+    console.log('handleConnectTableToDashboard:', tableId, '->', dashboardId);
+    if (!activeProject) return;
+    
+    try {
+      await createDashboardTable({
+        tableId,
+        dashboardId
+      }, activeProject.id);
+      
+      // Reload data to reflect the new connection
+      const updatedData = await loadDataFromSupabaseProject(activeProject.id);
+      if (updatedData) {
+        setParsedData(updatedData);
+      }
+    } catch (error) {
+      console.error('Error connecting table to dashboard:', error);
+      alert('Failed to connect table to dashboard. Please try again.');
+    }
   };
 
   const handleCanvasCreateTable = (x: number, y: number) => {
@@ -888,6 +1019,9 @@ function AppContent() {
           isOpen={!!selectedTable}
           onClose={() => setSelectedTable(null)}
           onTableSelect={handleTableSelect}
+          onConnectUpstream={isSupabaseEnabled && activeProject ? handleConnectUpstreamTable : undefined}
+          onConnectDownstream={isSupabaseEnabled && activeProject ? handleConnectDownstreamTable : undefined}
+          onConnectDashboard={isSupabaseEnabled && activeProject ? handleConnectTableToDashboard : undefined}
         />
 
         <DashboardDetails
@@ -896,6 +1030,7 @@ function AppContent() {
           isOpen={!!selectedDashboardDetails}
           onClose={() => setSelectedDashboardDetails(null)}
           onTableSelect={handleTableSelect}
+          onConnectTable={isSupabaseEnabled && activeProject ? handleConnectTableToDashboard : undefined}
         />
         
         {/* Delete confirmation dialog */}
@@ -921,8 +1056,8 @@ function AppContent() {
           }}
           onConfirm={handleCreateTable}
           existingTableIds={new Set(parsedData?.tables.keys() || [])}
-          connectionNode={createConnectionNode || undefined}
-          connectionMode={createConnectionMode || undefined}
+          connectionNode={createConnectionNode || dashboardConnectionNode || undefined}
+          connectionMode={createConnectionMode || (dashboardConnectionNode ? 'downstream' : undefined)}
         />
         
         {/* Create dashboard dialog */}

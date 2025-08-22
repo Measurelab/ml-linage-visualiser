@@ -23,15 +23,24 @@ export const buildGraphData = (
   const allNodes = new Map([...filteredTableNodes, ...dashboardNodes]);
   
   // Table-to-table connections
+  console.log('🔍 Building graph with lineages:', lineages.length);
+  console.log('🔍 Available table IDs:', Array.from(tableIds));
+  
   const tableLinks = lineages
-    .filter(lineage => 
-      tableIds.has(lineage.sourceTableId) && 
-      tableIds.has(lineage.targetTableId)
-    )
+    .filter(lineage => {
+      const hasSource = tableIds.has(lineage.sourceTableId);
+      const hasTarget = tableIds.has(lineage.targetTableId);
+      if (!hasSource || !hasTarget) {
+        console.log(`⚠️ Filtering out lineage ${lineage.sourceTableId} → ${lineage.targetTableId} (source: ${hasSource}, target: ${hasTarget})`);
+      }
+      return hasSource && hasTarget;
+    })
     .map(lineage => ({
       source: lineage.sourceTableId,
       target: lineage.targetTableId
     }));
+  
+  console.log('🔗 Created table links:', tableLinks.length, tableLinks);
 
   // Table-to-dashboard connections
   const dashboardLinks = dashboardTables

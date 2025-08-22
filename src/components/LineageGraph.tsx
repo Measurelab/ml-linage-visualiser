@@ -232,20 +232,34 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .attr('stroke', '#999')
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 1)
-      .attr('marker-end', 'url(#arrowhead)');
+      .attr('marker-end', (d: any) => {
+        // Only add arrows for table-to-table connections (not dashboard connections)
+        const target = typeof d.target === 'object' ? d.target : data.nodes.find(n => n.id === d.target);
+        if (target && target.nodeType === 'table') {
+          return 'url(#arrowhead)';
+        }
+        return null;
+      });
 
+    // Clear any existing defs to avoid conflicts
+    svg.select('defs').remove();
+    
     const defs = svg.append('defs');
+    
+    // Create arrow marker - position it right at the end of the line
+    // The line endpoint calculation will handle the offset
     defs.append('marker')
       .attr('id', 'arrowhead')
-      .attr('viewBox', '-0 -5 10 10')
-      .attr('refX', 20)
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 9) // Position close to line end
       .attr('refY', 0)
       .attr('orient', 'auto')
       .attr('markerWidth', 8)
       .attr('markerHeight', 8)
       .append('svg:path')
       .attr('d', 'M 0,-5 L 10,0 L 0,5')
-      .attr('fill', '#999');
+      .attr('fill', '#666')
+      .attr('stroke', 'none');
 
     const node = g.append('g')
       .selectAll('g')
@@ -368,8 +382,48 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       link
         .attr('x1', d => (d.source as GraphNode).x!)
         .attr('y1', d => (d.source as GraphNode).y!)
-        .attr('x2', d => (d.target as GraphNode).x!)
-        .attr('y2', d => (d.target as GraphNode).y!);
+        .attr('x2', d => {
+          const source = d.source as GraphNode;
+          const target = d.target as GraphNode;
+          
+          // Calculate the angle from source to target
+          const dx = target.x! - source.x!;
+          const dy = target.y! - source.y!;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance === 0) return target.x!;
+          
+          // Get target node radius
+          const targetRadius = getNodeRadius(target);
+          
+          // Stop the line before it reaches the node center
+          // Add extra offset for the arrow to be visible
+          const offset = targetRadius + 5; // 5px extra for arrow visibility
+          const ratio = (distance - offset) / distance;
+          
+          return source.x! + dx * ratio;
+        })
+        .attr('y2', d => {
+          const source = d.source as GraphNode;
+          const target = d.target as GraphNode;
+          
+          // Calculate the angle from source to target
+          const dx = target.x! - source.x!;
+          const dy = target.y! - source.y!;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance === 0) return target.y!;
+          
+          // Get target node radius
+          const targetRadius = getNodeRadius(target);
+          
+          // Stop the line before it reaches the node center
+          // Add extra offset for the arrow to be visible
+          const offset = targetRadius + 5; // 5px extra for arrow visibility
+          const ratio = (distance - offset) / distance;
+          
+          return source.y! + dy * ratio;
+        });
 
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
