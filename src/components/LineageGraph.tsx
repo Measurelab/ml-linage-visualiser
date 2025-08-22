@@ -10,6 +10,8 @@ interface LineageGraphProps {
   onNodeAddUpstream?: (node: GraphNode) => void;
   onNodeAddDownstream?: (node: GraphNode) => void;
   onDashboardAdd?: (node: GraphNode) => void;
+  onCanvasCreateTable?: (x: number, y: number) => void;
+  onCanvasCreateDashboard?: (x: number, y: number) => void;
   highlightedNodes?: Set<string>;
   focusedNodeId?: string;
   width?: number;
@@ -23,6 +25,8 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   onNodeAddUpstream,
   onNodeAddDownstream,
   onDashboardAdd,
+  onCanvasCreateTable,
+  onCanvasCreateDashboard,
   highlightedNodes = new Set(),
   focusedNodeId,
   width = window.innerWidth,
@@ -31,6 +35,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
+  const [canvasContextMenu, setCanvasContextMenu] = useState<{ x: number; y: number; svgX: number; svgY: number } | null>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
@@ -389,8 +394,55 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     // Click outside to close context menu
     const handleClickOutside = () => {
       setContextMenu(null);
+      setCanvasContextMenu(null);
     };
     svg.on('click', handleClickOutside);
+
+    // Handle SVG canvas right-click for creating new nodes
+    svg.on('contextmenu', function(event) {
+      // Only handle direct right-clicks on the SVG (not on nodes)
+      if (event.target === event.currentTarget || event.target.tagName === 'svg') {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        if (onCanvasCreateTable || onCanvasCreateDashboard) {
+          // Get click coordinates relative to SVG
+          const svgRect = svgRef.current?.getBoundingClientRect();
+          if (svgRect) {
+            const svgX = event.clientX - svgRect.left;
+            const svgY = event.clientY - svgRect.top;
+            
+            // Convert to graph coordinates
+            const transform = d3.zoomTransform(svgRef.current);
+            const graphX = (svgX - transform.x) / transform.k;
+            const graphY = (svgY - transform.y) / transform.k;
+            
+            // Try viewport coordinates directly
+            const menuX = event.clientX;
+            const menuY = event.clientY;
+            
+            console.log('Menu positioning:', {
+              clientX: event.clientX,
+              clientY: event.clientY,
+              pageX: event.pageX,
+              pageY: event.pageY,
+              scrollX: window.scrollX,
+              scrollY: window.scrollY,
+              menuX,
+              menuY
+            });
+            
+            // Show canvas context menu at the correct position
+            setCanvasContextMenu({
+              x: menuX,
+              y: menuY,
+              svgX: graphX,
+              svgY: graphY
+            });
+          }
+        }
+      }
+    });
 
     return () => {
       simulation.stop();
@@ -417,13 +469,16 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       if (contextMenu) {
         setContextMenu(null);
       }
+      if (canvasContextMenu) {
+        setCanvasContextMenu(null);
+      }
     };
 
-    if (contextMenu) {
+    if (contextMenu || canvasContextMenu) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
     }
-  }, [contextMenu]);
+  }, [contextMenu, canvasContextMenu]);
 
   // Function to reorganize layout (unfreeze)
   const reorganizeLayout = () => {
@@ -556,6 +611,37 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
                 {contextMenu.node.nodeType === 'dashboard' ? 'Delete dashboard' : 'Delete table'}
               </button>
             </>
+          )}
+        </div>
+      )}
+      
+      {/* Canvas context menu */}
+      {canvasContextMenu && (onCanvasCreateTable || onCanvasCreateDashboard) && (
+        <div
+          className="fixed bg-card border rounded-md shadow-lg py-1 z-50"
+          style={{ left: canvasContextMenu.x, top: canvasContextMenu.y }}
+        >
+          {onCanvasCreateTable && (
+            <button
+              className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+              onClick={() => {
+                onCanvasCreateTable(canvasContextMenu.svgX, canvasContextMenu.svgY);
+                setCanvasContextMenu(null);
+              }}
+            >
+              Create new table here
+            </button>
+          )}
+          {onCanvasCreateDashboard && (
+            <button
+              className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+              onClick={() => {
+                onCanvasCreateDashboard(canvasContextMenu.svgX, canvasContextMenu.svgY);
+                setCanvasContextMenu(null);
+              }}
+            >
+              Create new dashboard here
+            </button>
           )}
         </div>
       )}

@@ -14,7 +14,7 @@ import CreateDashboardDialog, { DashboardFormData } from './components/CreateDas
 import DashboardDetails from './components/DashboardDetails';
 import { PortalProvider, usePortal } from './contexts/PortalContext';
 import { loadAndParseData } from './utils/dataParser';
-import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable } from './services/lineageData';
+import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable, deleteDashboard } from './services/lineageData';
 import { getAllProjects, createProject } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
 import { buildGraphData } from './utils/graphBuilder';
@@ -52,6 +52,7 @@ function AppContent() {
   const [createConnectionMode, setCreateConnectionMode] = useState<'upstream' | 'downstream' | null>(null);
   const [createDashboardDialogOpen, setCreateDashboardDialogOpen] = useState(false);
   const [dashboardConnectionNode, setDashboardConnectionNode] = useState<GraphNode | null>(null);
+  const [canvasClickPosition, setCanvasClickPosition] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const checkAuthentication = async () => {
@@ -314,39 +315,68 @@ function AppContent() {
     if (!tableToDelete || !activeProject) return;
     
     try {
-      await deleteTable(tableToDelete.id, activeProject.id);
+      // Delete from database based on node type
+      if (tableToDelete.nodeType === 'dashboard') {
+        await deleteDashboard(tableToDelete.id, activeProject.id);
+      } else {
+        await deleteTable(tableToDelete.id, activeProject.id);
+      }
       
       // Update local state
       if (parsedData) {
-        const newTables = new Map(parsedData.tables);
-        newTables.delete(tableToDelete.id);
+        let updatedData = { ...parsedData };
         
-        const newLineages = parsedData.lineages.filter(
-          l => l.sourceTableId !== tableToDelete.id && l.targetTableId !== tableToDelete.id
-        );
+        if (tableToDelete.nodeType === 'dashboard') {
+          // Remove dashboard and its table connections
+          const newDashboards = new Map(parsedData.dashboards);
+          newDashboards.delete(tableToDelete.id);
+          
+          const newDashboardTables = parsedData.dashboardTables.filter(
+            dt => dt.dashboardId !== tableToDelete.id
+          );
+          
+          updatedData = {
+            ...updatedData,
+            dashboards: newDashboards,
+            dashboardTables: newDashboardTables
+          };
+        } else {
+          // Remove table and its relationships
+          const newTables = new Map(parsedData.tables);
+          newTables.delete(tableToDelete.id);
+          
+          const newLineages = parsedData.lineages.filter(
+            l => l.sourceTableId !== tableToDelete.id && l.targetTableId !== tableToDelete.id
+          );
+          
+          const newDashboardTables = parsedData.dashboardTables.filter(
+            dt => dt.tableId !== tableToDelete.id
+          );
+          
+          updatedData = {
+            ...updatedData,
+            tables: newTables,
+            lineages: newLineages,
+            dashboardTables: newDashboardTables
+          };
+        }
         
-        const newDashboardTables = parsedData.dashboardTables.filter(
-          dt => dt.tableId !== tableToDelete.id
-        );
-        
-        setParsedData({
-          ...parsedData,
-          tables: newTables,
-          lineages: newLineages,
-          dashboardTables: newDashboardTables
-        });
+        setParsedData(updatedData);
       }
       
-      // Clear selection if deleted table was selected
+      // Clear selection if deleted node was selected
       if (selectedTable?.id === tableToDelete.id) {
         setSelectedTable(null);
+      }
+      if (selectedDashboardDetails?.id === tableToDelete.id) {
+        setSelectedDashboardDetails(null);
       }
       
       setDeleteDialogOpen(false);
       setTableToDelete(null);
     } catch (error) {
-      console.error('Failed to delete table:', error);
-      alert('Failed to delete table. Please try again.');
+      console.error(`Failed to delete ${tableToDelete.nodeType}:`, error);
+      alert(`Failed to delete ${tableToDelete.nodeType}. Please try again.`);
     }
   };
 
@@ -359,7 +389,17 @@ function AppContent() {
       // Update local state
       if (parsedData) {
         const newTables = new Map(parsedData.tables);
-        newTables.set(newTable.id, newTable);
+        
+        // Add canvas position if available
+        let tableWithPosition = newTable;
+        if (canvasClickPosition) {
+          tableWithPosition = {
+            ...newTable,
+            initialPosition: canvasClickPosition
+          } as any; // Type assertion to allow adding position
+        }
+        
+        newTables.set(newTable.id, tableWithPosition);
         
         let updatedLineages = parsedData.lineages;
         
@@ -391,6 +431,7 @@ function AppContent() {
       setCreateDialogOpen(false);
       setCreateConnectionNode(null);
       setCreateConnectionMode(null);
+      setCanvasClickPosition(null); // Clear position after use
     } catch (error) {
       console.error('Failed to create table:', error);
       alert('Failed to create table. Please try again.');
@@ -414,8 +455,20 @@ function AppContent() {
     setCreateDashboardDialogOpen(true);
   };
 
+  const handleCanvasCreateTable = (x: number, y: number) => {
+    console.log('Canvas create table at:', { x, y });
+    setCanvasClickPosition({ x, y });
+    setCreateDialogOpen(true);
+  };
+
+  const handleCanvasCreateDashboard = (x: number, y: number) => {
+    console.log('Canvas create dashboard at:', { x, y });
+    setCanvasClickPosition({ x, y });
+    setCreateDashboardDialogOpen(true);
+  };
+
   const handleCreateDashboard = async (dashboardData: DashboardFormData) => {
-    if (!activeProject || !dashboardConnectionNode) return;
+    if (!activeProject) return;
     
     try {
       // Generate unique dashboard ID
@@ -432,22 +485,34 @@ function AppContent() {
       // Create dashboard in database
       await createDashboard(newDashboard, activeProject.id);
       
-      // Create dashboard-table connection
-      const dashboardTable: DashboardTable = {
-        dashboardId: dashboardId,
-        tableId: dashboardConnectionNode.id,
-        dashboardName: newDashboard.name,
-        tableName: dashboardConnectionNode.name
-      };
-      
-      await createDashboardTable(dashboardTable, activeProject.id);
+      // Create dashboard-table connection only if we have a connection node
+      let newDashboardTables = parsedData?.dashboardTables || [];
+      if (dashboardConnectionNode) {
+        const dashboardTable: DashboardTable = {
+          dashboardId: dashboardId,
+          tableId: dashboardConnectionNode.id,
+          dashboardName: newDashboard.name,
+          tableName: dashboardConnectionNode.name
+        };
+        
+        await createDashboardTable(dashboardTable, activeProject.id);
+        newDashboardTables = [...newDashboardTables, dashboardTable];
+      }
       
       // Update local state
       if (parsedData) {
         const newDashboards = new Map(parsedData.dashboards);
-        newDashboards.set(dashboardId, newDashboard);
         
-        const newDashboardTables = [...parsedData.dashboardTables, dashboardTable];
+        // Add canvas position if available
+        let dashboardWithPosition = newDashboard;
+        if (canvasClickPosition) {
+          dashboardWithPosition = {
+            ...newDashboard,
+            initialPosition: canvasClickPosition
+          } as any; // Type assertion to allow adding position
+        }
+        
+        newDashboards.set(dashboardId, dashboardWithPosition);
         
         setParsedData({
           ...parsedData,
@@ -458,6 +523,7 @@ function AppContent() {
       
       setCreateDashboardDialogOpen(false);
       setDashboardConnectionNode(null);
+      setCanvasClickPosition(null); // Clear position after use
     } catch (error) {
       console.error('Failed to create dashboard:', error);
       alert('Failed to create dashboard. Please try again.');
@@ -759,6 +825,8 @@ function AppContent() {
               onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
               onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
               onDashboardAdd={isSupabaseEnabled && activeProject ? handleDashboardAdd : undefined}
+              onCanvasCreateTable={isSupabaseEnabled && activeProject ? handleCanvasCreateTable : undefined}
+              onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
               highlightedNodes={highlightedNodes}
               focusedNodeId={selectedTable?.id}
             />

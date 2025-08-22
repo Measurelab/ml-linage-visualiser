@@ -120,7 +120,16 @@ const filterNodes = (
     }
     
     if (include) {
-      filteredNodes.set(id, { ...table, nodeType: 'table' });
+      const graphNode = { ...table, nodeType: 'table' };
+      
+      // If table has an initial position from canvas click, apply it
+      if ((table as any).initialPosition) {
+        graphNode.x = (table as any).initialPosition.x;
+        graphNode.y = (table as any).initialPosition.y;
+        // Don't fix the position immediately - let D3 handle it naturally
+      }
+      
+      filteredNodes.set(id, graphNode);
     }
   });
   
@@ -155,7 +164,16 @@ const getDashboardNodes = (
     }
     
     if (include) {
-      dashboardNodes.set(id, { ...dashboard, nodeType: 'dashboard' });
+      const graphNode = { ...dashboard, nodeType: 'dashboard' };
+      
+      // If dashboard has an initial position from canvas click, apply it
+      if ((dashboard as any).initialPosition) {
+        graphNode.x = (dashboard as any).initialPosition.x;
+        graphNode.y = (dashboard as any).initialPosition.y;
+        // Don't fix the position immediately - let D3 handle it naturally
+      }
+      
+      dashboardNodes.set(id, graphNode);
     }
   });
   
