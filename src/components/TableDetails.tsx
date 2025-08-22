@@ -464,7 +464,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     Upstream tables ({upstreamTables.size})
                   </h3>
                   {onConnectUpstream && (
-                    <DropdownMenu modal={false}>
+                    <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="gap-1">
                           <Plus className="h-3 w-3" />
@@ -543,7 +543,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     Downstream tables ({downstreamTables.size})
                   </h3>
                   {onConnectDownstream && (
-                    <DropdownMenu modal={false}>
+                    <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="gap-1">
                           <Plus className="h-3 w-3" />

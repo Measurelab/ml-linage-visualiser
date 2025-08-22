@@ -154,7 +154,7 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
                   </p>
                 </div>
                 {onConnectTable && (
-                  <DropdownMenu modal={false}>
+                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="gap-1">
                         <Plus className="h-3 w-3" />

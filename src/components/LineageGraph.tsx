@@ -520,17 +520,25 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   // Handle context menu click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Don't close context menus if clicking on dropdown menu elements or sheet panels
+      // Don't close context menus if clicking on UI elements
       const target = event.target as Element;
       if (target && (
+        // Dropdown menu elements
         target.closest('[data-radix-dropdown-menu-content]') ||
         target.closest('[data-radix-dropdown-menu-trigger]') ||
         target.closest('[role="menuitem"]') ||
         target.closest('[role="menu"]') ||
+        // Sheet/Dialog elements
         target.closest('[data-radix-dialog-content]') ||
         target.closest('[data-radix-sheet-content]') ||
+        target.closest('[data-radix-dialog-overlay]') ||
+        target.closest('[data-radix-sheet-overlay]') ||
         target.closest('.sheet-content') ||
-        target.closest('[role="dialog"]')
+        target.closest('[role="dialog"]') ||
+        // Any UI component that might contain dropdowns
+        target.closest('.lucide') || // Icon buttons
+        target.closest('button') || // All buttons
+        target.closest('[data-state="open"]') // Any open dropdown/popover
       )) {
         return;
       }
