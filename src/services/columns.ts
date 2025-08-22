@@ -1,12 +1,56 @@
 import { supabase, isSupabaseEnabled } from './supabase';
 import { Column, CreateColumnRequest, UpdateColumnRequest } from '../types';
 
+// Global flag to track if table_columns table exists
+let columnsTableExists: boolean | null = null;
+
+/**
+ * Check if columns functionality is available
+ */
+export const areColumnsAvailable = (): boolean => {
+  return isSupabaseEnabled && columnsTableExists !== false;
+};
+
+/**
+ * Test table_columns table access
+ */
+export const testTableColumnsAccess = async (): Promise<{ exists: boolean; error?: any }> => {
+  if (!isSupabaseEnabled || !supabase) {
+    return { exists: false, error: 'Supabase not enabled' };
+  }
+
+  try {
+    console.log('Testing table_columns access...');
+    const { error } = await supabase
+      .from('table_columns')
+      .select('*', { count: 'exact', head: true });
+    
+    if (error) {
+      console.error('table_columns access error:', error);
+      return { exists: false, error };
+    }
+    
+    console.log('table_columns exists and is accessible');
+    columnsTableExists = true;
+    return { exists: true };
+  } catch (error) {
+    console.error('table_columns access exception:', error);
+    return { exists: false, error };
+  }
+};
+
 /**
  * Fetch all columns for a specific table
  */
 export const getTableColumns = async (tableId: string): Promise<Column[]> => {
   if (!isSupabaseEnabled) {
     console.warn('Supabase is not enabled');
+    return [];
+  }
+
+  // If we know the table doesn't exist, return early
+  if (columnsTableExists === false) {
+    console.warn('table_columns table confirmed not to exist - skipping request');
     return [];
   }
 
@@ -18,12 +62,26 @@ export const getTableColumns = async (tableId: string): Promise<Column[]> => {
       .order('column_name');
 
     if (error) {
+      // Handle specific schema cache error gracefully
+      if (error.message && (error.message.includes('table_columns') || error.message.includes('schema cache'))) {
+        console.warn('table_columns table does not exist in database schema');
+        columnsTableExists = false; // Remember this for future calls
+        return [];
+      }
       console.error('Error fetching table columns:', error);
       return [];
     }
 
+    // If we got here successfully, the table exists
+    columnsTableExists = true;
     return data || [];
-  } catch (error) {
+  } catch (error: any) {
+    // Handle schema cache errors and other runtime errors
+    if (error?.message && (error.message.includes('table_columns') || error.message.includes('schema cache') || error.message.includes('404'))) {
+      console.warn('table_columns table does not exist in database schema');
+      columnsTableExists = false; // Remember this for future calls
+      return [];
+    }
     console.error('Error fetching table columns:', error);
     return [];
   }

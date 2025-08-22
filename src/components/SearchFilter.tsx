@@ -90,11 +90,12 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     filters.searchTerm !== '' ||
     !!filters.selectedDashboard;
 
-  const getLayerVariant = (layer: LayerType): "default" | "success" | "info" | "warning" => {
+  const getLayerVariant = (layer: LayerType): "default" | "success" | "info" | "warning" | "destructive" => {
     switch (layer) {
       case 'Raw': return 'success';
       case 'Inter': return 'info';
       case 'Target': return 'warning';
+      case 'Reporting': return 'destructive';
       default: return 'default';
     }
   };
@@ -146,7 +147,7 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
             <div>
               <h3 className="text-sm font-semibold mb-3">Layers</h3>
               <div className="flex gap-2">
-                {(['Raw', 'Inter', 'Target'] as LayerType[]).map(layer => (
+                {(['Raw', 'Inter', 'Target', 'Reporting'] as LayerType[]).map(layer => (
                   <Button
                     key={layer}
                     onClick={() => handleLayerToggle(layer)}

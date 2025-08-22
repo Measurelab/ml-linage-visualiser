@@ -1,8 +1,14 @@
 import React from 'react';
-import { X, ExternalLink, Users, Building, Eye } from 'lucide-react';
+import { X, ExternalLink, Users, Building, Eye, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { getDirectTablesByDashboard } from '../utils/graphBuilder';
 import { ParsedData, Dashboard, Table } from '../types';
 
@@ -12,6 +18,7 @@ interface DashboardDetailsProps {
   isOpen: boolean;
   onClose: () => void;
   onTableSelect: (tableId: string) => void;
+  onConnectTable?: (tableId: string, dashboardId: string) => void;
 }
 
 const DashboardDetails: React.FC<DashboardDetailsProps> = ({
@@ -19,7 +26,8 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
   parsedData,
   isOpen,
   onClose,
-  onTableSelect
+  onTableSelect,
+  onConnectTable
 }) => {
   if (!isOpen || !dashboard) return null;
 
@@ -61,14 +69,16 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
             <h2 className="text-lg font-semibold truncate">{dashboard.name}</h2>
             <p className="text-sm text-muted-foreground">Dashboard details</p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="flex-shrink-0 ml-2"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="flex-shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Content */}
@@ -134,12 +144,57 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
           {/* Connected Tables */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">
-                Connected tables ({connectedTables.length})
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Tables that feed data to this dashboard
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">
+                    Connected tables ({connectedTables.length})
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Tables that feed data to this dashboard
+                  </p>
+                </div>
+                {onConnectTable && (
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-1">
+                        <Plus className="h-3 w-3" />
+                        Add
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64 max-h-96 overflow-y-auto">
+                      {Array.from(parsedData.tables.values())
+                        .filter(t => !connectedTableIds.has(t.id))
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(t => (
+                          <DropdownMenuItem 
+                            key={`table-${t.id}`}
+                            onClick={() => {
+                              try {
+                                console.log('DashboardDetails: Connect table', t.id, 'to dashboard:', dashboard.id);
+                                onConnectTable(t.id, dashboard.id);
+                              } catch (error) {
+                                console.error('Error connecting table to dashboard:', error);
+                              }
+                            }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{t.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{t.dataset}</p>
+                            </div>
+                          </DropdownMenuItem>
+                        ))
+                      }
+                      {Array.from(parsedData.tables.values())
+                        .filter(t => !connectedTableIds.has(t.id))
+                        .length === 0 && (
+                        <DropdownMenuItem disabled>
+                          <p className="text-sm text-muted-foreground">No available tables</p>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="pt-0">
               {connectedTables.length === 0 ? (

@@ -10,6 +10,8 @@ interface LineageGraphProps {
   onNodeAddUpstream?: (node: GraphNode) => void;
   onNodeAddDownstream?: (node: GraphNode) => void;
   onDashboardAdd?: (node: GraphNode) => void;
+  onCanvasCreateTable?: (x: number, y: number) => void;
+  onCanvasCreateDashboard?: (x: number, y: number) => void;
   highlightedNodes?: Set<string>;
   focusedNodeId?: string;
   width?: number;
@@ -23,6 +25,8 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   onNodeAddUpstream,
   onNodeAddDownstream,
   onDashboardAdd,
+  onCanvasCreateTable,
+  onCanvasCreateDashboard,
   highlightedNodes = new Set(),
   focusedNodeId,
   width = window.innerWidth,
@@ -31,6 +35,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
+  const [canvasContextMenu, setCanvasContextMenu] = useState<{ x: number; y: number; svgX: number; svgY: number } | null>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
@@ -227,20 +232,34 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .attr('stroke', '#999')
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 1)
-      .attr('marker-end', 'url(#arrowhead)');
+      .attr('marker-end', (d: any) => {
+        // Only add arrows for table-to-table connections (not dashboard connections)
+        const target = typeof d.target === 'object' ? d.target : data.nodes.find(n => n.id === d.target);
+        if (target && target.nodeType === 'table') {
+          return 'url(#arrowhead)';
+        }
+        return null;
+      });
 
+    // Clear any existing defs to avoid conflicts
+    svg.select('defs').remove();
+    
     const defs = svg.append('defs');
+    
+    // Create arrow marker - position it right at the end of the line
+    // The line endpoint calculation will handle the offset
     defs.append('marker')
       .attr('id', 'arrowhead')
-      .attr('viewBox', '-0 -5 10 10')
-      .attr('refX', 20)
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 9) // Position close to line end
       .attr('refY', 0)
       .attr('orient', 'auto')
       .attr('markerWidth', 8)
       .attr('markerHeight', 8)
       .append('svg:path')
       .attr('d', 'M 0,-5 L 10,0 L 0,5')
-      .attr('fill', '#999');
+      .attr('fill', '#666')
+      .attr('stroke', 'none');
 
     const node = g.append('g')
       .selectAll('g')
@@ -363,8 +382,48 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       link
         .attr('x1', d => (d.source as GraphNode).x!)
         .attr('y1', d => (d.source as GraphNode).y!)
-        .attr('x2', d => (d.target as GraphNode).x!)
-        .attr('y2', d => (d.target as GraphNode).y!);
+        .attr('x2', d => {
+          const source = d.source as GraphNode;
+          const target = d.target as GraphNode;
+          
+          // Calculate the angle from source to target
+          const dx = target.x! - source.x!;
+          const dy = target.y! - source.y!;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance === 0) return target.x!;
+          
+          // Get target node radius
+          const targetRadius = getNodeRadius(target);
+          
+          // Stop the line before it reaches the node center
+          // Add extra offset for the arrow to be visible
+          const offset = targetRadius + 5; // 5px extra for arrow visibility
+          const ratio = (distance - offset) / distance;
+          
+          return source.x! + dx * ratio;
+        })
+        .attr('y2', d => {
+          const source = d.source as GraphNode;
+          const target = d.target as GraphNode;
+          
+          // Calculate the angle from source to target
+          const dx = target.x! - source.x!;
+          const dy = target.y! - source.y!;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance === 0) return target.y!;
+          
+          // Get target node radius
+          const targetRadius = getNodeRadius(target);
+          
+          // Stop the line before it reaches the node center
+          // Add extra offset for the arrow to be visible
+          const offset = targetRadius + 5; // 5px extra for arrow visibility
+          const ratio = (distance - offset) / distance;
+          
+          return source.y! + dy * ratio;
+        });
 
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
@@ -389,8 +448,55 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     // Click outside to close context menu
     const handleClickOutside = () => {
       setContextMenu(null);
+      setCanvasContextMenu(null);
     };
     svg.on('click', handleClickOutside);
+
+    // Handle SVG canvas right-click for creating new nodes
+    svg.on('contextmenu', function(event) {
+      // Only handle direct right-clicks on the SVG (not on nodes)
+      if (event.target === event.currentTarget || event.target.tagName === 'svg') {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        if (onCanvasCreateTable || onCanvasCreateDashboard) {
+          // Get click coordinates relative to SVG
+          const svgRect = svgRef.current?.getBoundingClientRect();
+          if (svgRect) {
+            const svgX = event.clientX - svgRect.left;
+            const svgY = event.clientY - svgRect.top;
+            
+            // Convert to graph coordinates
+            const transform = d3.zoomTransform(svgRef.current!);
+            const graphX = (svgX - transform.x) / transform.k;
+            const graphY = (svgY - transform.y) / transform.k;
+            
+            // Try viewport coordinates directly
+            const menuX = event.clientX;
+            const menuY = event.clientY;
+            
+            console.log('Menu positioning:', {
+              clientX: event.clientX,
+              clientY: event.clientY,
+              pageX: event.pageX,
+              pageY: event.pageY,
+              scrollX: window.scrollX,
+              scrollY: window.scrollY,
+              menuX,
+              menuY
+            });
+            
+            // Show canvas context menu at the correct position
+            setCanvasContextMenu({
+              x: menuX,
+              y: menuY,
+              svgX: graphX,
+              svgY: graphY
+            });
+          }
+        }
+      }
+    });
 
     return () => {
       simulation.stop();
@@ -413,17 +519,35 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
 
   // Handle context menu click outside
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Don't close context menus if clicking on dropdown menu elements or sheet panels
+      const target = event.target as Element;
+      if (target && (
+        target.closest('[data-radix-dropdown-menu-content]') ||
+        target.closest('[data-radix-dropdown-menu-trigger]') ||
+        target.closest('[role="menuitem"]') ||
+        target.closest('[role="menu"]') ||
+        target.closest('[data-radix-dialog-content]') ||
+        target.closest('[data-radix-sheet-content]') ||
+        target.closest('.sheet-content') ||
+        target.closest('[role="dialog"]')
+      )) {
+        return;
+      }
+
       if (contextMenu) {
         setContextMenu(null);
       }
+      if (canvasContextMenu) {
+        setCanvasContextMenu(null);
+      }
     };
 
-    if (contextMenu) {
+    if (contextMenu || canvasContextMenu) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
     }
-  }, [contextMenu]);
+  }, [contextMenu, canvasContextMenu]);
 
   // Function to reorganize layout (unfreeze)
   const reorganizeLayout = () => {
@@ -556,6 +680,37 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
                 {contextMenu.node.nodeType === 'dashboard' ? 'Delete dashboard' : 'Delete table'}
               </button>
             </>
+          )}
+        </div>
+      )}
+      
+      {/* Canvas context menu */}
+      {canvasContextMenu && (onCanvasCreateTable || onCanvasCreateDashboard) && (
+        <div
+          className="fixed bg-card border rounded-md shadow-lg py-1 z-50"
+          style={{ left: canvasContextMenu.x, top: canvasContextMenu.y }}
+        >
+          {onCanvasCreateTable && (
+            <button
+              className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+              onClick={() => {
+                onCanvasCreateTable(canvasContextMenu.svgX, canvasContextMenu.svgY);
+                setCanvasContextMenu(null);
+              }}
+            >
+              Create new table here
+            </button>
+          )}
+          {onCanvasCreateDashboard && (
+            <button
+              className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+              onClick={() => {
+                onCanvasCreateDashboard(canvasContextMenu.svgX, canvasContextMenu.svgY);
+                setCanvasContextMenu(null);
+              }}
+            >
+              Create new dashboard here
+            </button>
           )}
         </div>
       )}

@@ -23,15 +23,24 @@ export const buildGraphData = (
   const allNodes = new Map([...filteredTableNodes, ...dashboardNodes]);
   
   // Table-to-table connections
+  console.log('🔍 Building graph with lineages:', lineages.length);
+  console.log('🔍 Available table IDs:', Array.from(tableIds));
+  
   const tableLinks = lineages
-    .filter(lineage => 
-      tableIds.has(lineage.sourceTableId) && 
-      tableIds.has(lineage.targetTableId)
-    )
+    .filter(lineage => {
+      const hasSource = tableIds.has(lineage.sourceTableId);
+      const hasTarget = tableIds.has(lineage.targetTableId);
+      if (!hasSource || !hasTarget) {
+        console.log(`⚠️ Filtering out lineage ${lineage.sourceTableId} → ${lineage.targetTableId} (source: ${hasSource}, target: ${hasTarget})`);
+      }
+      return hasSource && hasTarget;
+    })
     .map(lineage => ({
       source: lineage.sourceTableId,
       target: lineage.targetTableId
     }));
+  
+  console.log('🔗 Created table links:', tableLinks.length, tableLinks);
 
   // Table-to-dashboard connections
   const dashboardLinks = dashboardTables
@@ -120,7 +129,16 @@ const filterNodes = (
     }
     
     if (include) {
-      filteredNodes.set(id, { ...table, nodeType: 'table' });
+      const graphNode: GraphNode = { ...table, nodeType: 'table' as const };
+      
+      // If table has an initial position from canvas click, apply it
+      if ((table as any).initialPosition) {
+        graphNode.x = (table as any).initialPosition.x;
+        graphNode.y = (table as any).initialPosition.y;
+        // Don't fix the position immediately - let D3 handle it naturally
+      }
+      
+      filteredNodes.set(id, graphNode);
     }
   });
   
@@ -155,7 +173,16 @@ const getDashboardNodes = (
     }
     
     if (include) {
-      dashboardNodes.set(id, { ...dashboard, nodeType: 'dashboard' });
+      const graphNode: GraphNode = { ...dashboard, nodeType: 'dashboard' as const };
+      
+      // If dashboard has an initial position from canvas click, apply it
+      if ((dashboard as any).initialPosition) {
+        graphNode.x = (dashboard as any).initialPosition.x;
+        graphNode.y = (dashboard as any).initialPosition.y;
+        // Don't fix the position immediately - let D3 handle it naturally
+      }
+      
+      dashboardNodes.set(id, graphNode);
     }
   });
   
@@ -267,6 +294,8 @@ export const getLayerColor = (layer: string): string => {
       return '#3b82f6'; // blue
     case 'Target':
       return '#f59e0b'; // amber
+    case 'Reporting':
+      return '#ef4444'; // red
     default:
       return '#6b7280'; // gray
   }

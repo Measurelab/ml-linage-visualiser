@@ -227,6 +227,11 @@ export const loadDataFromSupabaseProject = async (projectId: string): Promise<Pa
     dashboards: dashboards.size,
     dashboardTables: dashboardTables.length
   });
+  
+  // Debug lineages
+  if (lineages.length > 0) {
+    console.log('📊 Lineages loaded:', lineages.map(l => `${l.sourceTableId} → ${l.targetTableId}`));
+  }
 
   return {
     tables,
@@ -405,6 +410,7 @@ export const createLineage = async (lineage: TableLineage, projectId: string): P
   }
   
   console.log(`✅ Created lineage from ${lineage.sourceTableId} to ${lineage.targetTableId}`);
+  console.log('🔗 Lineage data saved:', lineageData);
 };
 
 // Delete a lineage relationship
