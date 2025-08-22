@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ExternalLink, Users, Building, Eye, MoreVertical, Database, Plus } from 'lucide-react';
+import { X, ExternalLink, Users, Building, Eye, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -154,17 +154,17 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
                   </p>
                 </div>
                 {onConnectTable && (
-                  <DropdownMenu>
+                  <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="gap-1">
                         <Plus className="h-3 w-3" />
                         Add
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuContent align="end" className="w-64 max-h-96 overflow-y-auto">
                       {Array.from(parsedData.tables.values())
                         .filter(t => !connectedTableIds.has(t.id))
-                        .slice(0, 15)
+                        .sort((a, b) => a.name.localeCompare(b.name))
                         .map(t => (
                           <DropdownMenuItem 
                             key={`table-${t.id}`}

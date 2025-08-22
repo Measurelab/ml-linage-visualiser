@@ -486,17 +486,6 @@ function AppContent() {
     }
   };
 
-  const handleTableAddToDashboard = (dashboard: Dashboard) => {
-    console.log('handleTableAddToDashboard called with:', dashboard);
-    try {
-      // Convert dashboard to GraphNode and use existing table creation flow
-      const dashboardNode: GraphNode = { ...dashboard, nodeType: 'dashboard' };
-      setDashboardConnectionNode(dashboardNode);
-      setCreateDialogOpen(true);
-    } catch (error) {
-      console.error('Error in handleTableAddToDashboard:', error);
-    }
-  };
 
   // Connection handlers for existing nodes
   const handleConnectUpstreamTable = async (sourceTableId: string, targetTableId: string) => {
@@ -570,9 +559,15 @@ function AppContent() {
     if (!activeProject) return;
     
     try {
+      // Get table and dashboard names for the relationship
+      const table = parsedData?.tables.get(tableId);
+      const dashboard = parsedData?.dashboards.get(dashboardId);
+      
       await createDashboardTable({
         tableId,
-        dashboardId
+        dashboardId,
+        tableName: table?.name || '',
+        dashboardName: dashboard?.name || ''
       }, activeProject.id);
       
       // Reload data to reflect the new connection
@@ -590,6 +585,19 @@ function AppContent() {
     console.log('Canvas create table at:', { x, y });
     setCanvasClickPosition({ x, y });
     setCreateDialogOpen(true);
+  };
+
+  const handleTableUpdate = async () => {
+    if (!activeProject) return;
+    
+    try {
+      const updatedData = await loadDataFromSupabaseProject(activeProject.id);
+      if (updatedData) {
+        setParsedData(updatedData);
+      }
+    } catch (error) {
+      console.error('Error reloading data after table update:', error);
+    }
   };
 
   const handleCanvasCreateDashboard = (x: number, y: number) => {
@@ -1022,6 +1030,8 @@ function AppContent() {
           onConnectUpstream={isSupabaseEnabled && activeProject ? handleConnectUpstreamTable : undefined}
           onConnectDownstream={isSupabaseEnabled && activeProject ? handleConnectDownstreamTable : undefined}
           onConnectDashboard={isSupabaseEnabled && activeProject ? handleConnectTableToDashboard : undefined}
+          onTableUpdate={handleTableUpdate}
+          activeProjectId={activeProject?.id}
         />
 
         <DashboardDetails

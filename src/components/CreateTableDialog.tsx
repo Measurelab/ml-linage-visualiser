@@ -49,16 +49,21 @@ const CreateTableDialog: React.FC<CreateTableDialogProps> = ({
     link: '',
     description: ''
   });
+
+  // Auto-generate table ID based on dataset and name
+  const generateTableId = (dataset: string, name: string): string => {
+    if (!dataset.trim() || !name.trim()) return '';
+    
+    // Convert to lowercase and replace spaces/special chars with underscores
+    const cleanDataset = dataset.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const cleanName = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    
+    return `${cleanDataset}.${cleanName}`;
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-
-    if (!formData.id?.trim()) {
-      newErrors.id = 'Table ID is required';
-    } else if (existingTableIds.has(formData.id)) {
-      newErrors.id = 'This table ID already exists';
-    }
 
     if (!formData.name?.trim()) {
       newErrors.name = 'Table name is required';
@@ -68,14 +73,23 @@ const CreateTableDialog: React.FC<CreateTableDialogProps> = ({
       newErrors.dataset = 'Dataset is required';
     }
 
+    // Generate the ID and check for duplicates
+    const generatedId = generateTableId(formData.dataset || '', formData.name || '');
+    if (generatedId && existingTableIds.has(generatedId)) {
+      newErrors.name = 'A table with this name already exists in this dataset';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = () => {
     if (validateForm()) {
+      // Generate the table ID automatically
+      const generatedId = generateTableId(formData.dataset!.trim(), formData.name!.trim());
+      
       const newTable = {
-        id: formData.id!.trim(),
+        id: generatedId,
         name: formData.name!.trim(),
         dataset: formData.dataset!.trim(),
         layer: formData.layer as LayerType,
@@ -109,6 +123,19 @@ const CreateTableDialog: React.FC<CreateTableDialogProps> = ({
     onClose();
   };
 
+  // Update the generated ID whenever name or dataset changes
+  const handleNameChange = (name: string) => {
+    const generatedId = generateTableId(formData.dataset || '', name);
+    setFormData({ ...formData, name, id: generatedId });
+    setErrors({ ...errors, name: '' });
+  };
+
+  const handleDatasetChange = (dataset: string) => {
+    const generatedId = generateTableId(dataset, formData.name || '');
+    setFormData({ ...formData, dataset, id: generatedId });
+    setErrors({ ...errors, dataset: '' });
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[525px]">
@@ -135,31 +162,19 @@ const CreateTableDialog: React.FC<CreateTableDialogProps> = ({
                 </div>
               </div>
             ) : (
-              'Add a new table to the lineage visualization. All fields marked with * are required.'
+              'Add a new table to the lineage visualization. Table ID will be generated automatically from the dataset and name.'
             )}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="id">
-              Table ID *
-            </Label>
-            <Input
-              id="id"
-              value={formData.id}
-              onChange={(e) => {
-                setFormData({ ...formData, id: e.target.value });
-                setErrors({ ...errors, id: '' });
-              }}
-              placeholder="e.g., project.dataset.table_name"
-            />
-            {errors.id && (
-              <p className="text-sm text-destructive flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                {errors.id}
-              </p>
-            )}
-          </div>
+          {formData.id && (
+            <div className="rounded-md bg-muted px-3 py-2">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Generated table ID
+              </Label>
+              <p className="text-sm font-mono">{formData.id}</p>
+            </div>
+          )}
 
           <div className="grid gap-2">
             <Label htmlFor="name">
@@ -168,10 +183,7 @@ const CreateTableDialog: React.FC<CreateTableDialogProps> = ({
             <Input
               id="name"
               value={formData.name}
-              onChange={(e) => {
-                setFormData({ ...formData, name: e.target.value });
-                setErrors({ ...errors, name: '' });
-              }}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder="e.g., users_table"
             />
             {errors.name && (
@@ -189,10 +201,7 @@ const CreateTableDialog: React.FC<CreateTableDialogProps> = ({
             <Input
               id="dataset"
               value={formData.dataset}
-              onChange={(e) => {
-                setFormData({ ...formData, dataset: e.target.value });
-                setErrors({ ...errors, dataset: '' });
-              }}
+              onChange={(e) => handleDatasetChange(e.target.value)}
               placeholder="e.g., analytics"
             />
             {errors.dataset && (
@@ -217,6 +226,7 @@ const CreateTableDialog: React.FC<CreateTableDialogProps> = ({
                   <SelectItem value="Raw">Raw</SelectItem>
                   <SelectItem value="Inter">Inter</SelectItem>
                   <SelectItem value="Target">Target</SelectItem>
+                  <SelectItem value="Reporting">Reporting</SelectItem>
                 </SelectContent>
               </Select>
             </div>

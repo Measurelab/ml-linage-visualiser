@@ -1,4 +1,4 @@
-export type LayerType = 'Raw' | 'Inter' | 'Target';
+export type LayerType = 'Raw' | 'Inter' | 'Target' | 'Reporting';
 export type TableType = 'Table' | 'View' | 'Query' | 'Sheet';
 export type ColumnDataType = 'STRING' | 'INTEGER' | 'FLOAT' | 'BOOLEAN' | 'TIMESTAMP' | 'DATE' | 'JSON' | 'ARRAY';
 

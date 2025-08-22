@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Table, ParsedData, Column, CreateColumnRequest } from '@/types';
 import { getUpstreamTables, getDownstreamTables } from '@/utils/graphBuilder';
-import { getTableColumns, createColumn, deleteColumn, createBulkColumns, areColumnsAvailable, testTableColumnsAccess } from '@/services/columns';
+import { getTableColumns, createColumn, deleteColumn, createBulkColumns, areColumnsAvailable } from '@/services/columns';
+import { updateTable } from '@/services/lineageData';
 import { isSupabaseEnabled } from '@/services/supabase';
-import { ExternalLink, Clock, Plus, Database, Upload, MoreVertical, ArrowUp, ArrowDown, BarChart3 } from 'lucide-react';
+import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X } from 'lucide-react';
 import ColumnList from './ColumnList';
 import AddColumnModal from './AddColumnModal';
 import UploadSchemaModal from './UploadSchemaModal';
@@ -18,6 +19,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +46,8 @@ interface TableDetailsProps {
   onConnectUpstream?: (sourceTableId: string, targetTableId: string) => void;
   onConnectDownstream?: (sourceTableId: string, targetTableId: string) => void;
   onConnectDashboard?: (tableId: string, dashboardId: string) => void;
+  onTableUpdate?: () => void;
+  activeProjectId?: string;
 }
 
 const TableDetails: React.FC<TableDetailsProps> = ({
@@ -44,13 +58,17 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   onTableSelect,
   onConnectUpstream,
   onConnectDownstream,
-  onConnectDashboard
+  onConnectDashboard,
+  onTableUpdate,
+  activeProjectId
 }) => {
   const [columns, setColumns] = useState<Column[]>([]);
   const [columnsLoading, setColumnsLoading] = useState(false);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [showUploadSchema, setShowUploadSchema] = useState(false);
   const [columnsError, setColumnsError] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<Table>>({});
 
   // Load columns when table changes
   useEffect(() => {
@@ -81,6 +99,21 @@ const TableDetails: React.FC<TableDetailsProps> = ({
       supabaseEnabled: isSupabaseEnabled 
     });
   }, [table?.id]);
+
+  // Initialize edit form when table changes
+  useEffect(() => {
+    if (table) {
+      setEditFormData({
+        name: table.name,
+        dataset: table.dataset,
+        layer: table.layer,
+        tableType: table.tableType,
+        isScheduledQuery: table.isScheduledQuery,
+        link: table.link,
+        description: table.description
+      });
+    }
+  }, [table]);
 
   if (!table) return null;
 
@@ -141,12 +174,42 @@ const TableDetails: React.FC<TableDetailsProps> = ({
 
   const getTableById = (id: string) => parsedData.tables.get(id);
 
-  const getLayerVariant = (layer: string): "default" | "success" | "info" | "warning" => {
+  const getLayerVariant = (layer: string): "default" | "success" | "info" | "warning" | "destructive" => {
     switch (layer) {
       case 'Raw': return 'success';
       case 'Inter': return 'info';
       case 'Target': return 'warning';
+      case 'Reporting': return 'destructive';
       default: return 'default';
+    }
+  };
+
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // Reset form data when canceling
+      setEditFormData({
+        name: table?.name,
+        dataset: table?.dataset,
+        layer: table?.layer,
+        tableType: table?.tableType,
+        isScheduledQuery: table?.isScheduledQuery,
+        link: table?.link,
+        description: table?.description
+      });
+    }
+    setIsEditing(!isEditing);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!table || !activeProjectId) return;
+    
+    try {
+      await updateTable(table.id, editFormData, activeProjectId);
+      setIsEditing(false);
+      onTableUpdate?.();
+    } catch (error) {
+      console.error('Error updating table:', error);
+      alert('Failed to update table. Please try again.');
     }
   };
 
@@ -156,64 +219,207 @@ const TableDetails: React.FC<TableDetailsProps> = ({
         <SheetHeader>
           <div className="flex items-center justify-between">
             <div>
-              <SheetTitle>{table.name}</SheetTitle>
+              <SheetTitle>{isEditing ? 'Edit table' : table.name}</SheetTitle>
               <SheetDescription>{table.id}</SheetDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeProjectId && (
+                isEditing ? (
+                  <>
+                    <Button
+                      onClick={handleSaveEdit}
+                      size="sm"
+                      className="gap-2"
+                    >
+                      <Check className="h-4 w-4" />
+                      Save
+                    </Button>
+                    <Button
+                      onClick={handleEditToggle}
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <X className="h-4 w-4" />
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={handleEditToggle}
+                    size="sm"
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </Button>
+                )
+              )}
             </div>
           </div>
         </SheetHeader>
         
         <ScrollArea className="h-[calc(100vh-120px)] mt-6">
           <div className="space-y-4 px-2">
-            <div className="space-y-3">
-              <div>
-                <span className="text-sm font-medium text-muted-foreground">Dataset</span>
-                <p className="text-sm mt-1">{table.dataset}</p>
-              </div>
-              
-              <div className="flex gap-4">
+            {isEditing ? (
+              <div className="space-y-4">
                 <div>
-                  <span className="text-sm font-medium text-muted-foreground">Layer</span>
-                  <div className="mt-1">
-                    <Badge variant={getLayerVariant(table.layer)}>
-                      {table.layer}
-                    </Badge>
-                  </div>
+                  <Label htmlFor="name" className="text-sm font-medium text-muted-foreground">
+                    Table name
+                  </Label>
+                  <Input
+                    id="name"
+                    value={editFormData.name || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="dataset" className="text-sm font-medium text-muted-foreground">
+                    Dataset
+                  </Label>
+                  <Input
+                    id="dataset"
+                    value={editFormData.dataset || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, dataset: e.target.value })}
+                    className="mt-1"
+                  />
                 </div>
                 
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      Layer
+                    </Label>
+                    <Select
+                      value={editFormData.layer}
+                      onValueChange={(value) => setEditFormData({ ...editFormData, layer: value as any })}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Raw">Raw</SelectItem>
+                        <SelectItem value="Inter">Inter</SelectItem>
+                        <SelectItem value="Target">Target</SelectItem>
+                        <SelectItem value="Reporting">Reporting</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex-1">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      Table type
+                    </Label>
+                    <Select
+                      value={editFormData.tableType}
+                      onValueChange={(value) => setEditFormData({ ...editFormData, tableType: value as any })}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Table">Table</SelectItem>
+                        <SelectItem value="View">View</SelectItem>
+                        <SelectItem value="Query">Query</SelectItem>
+                        <SelectItem value="Sheet">Sheet</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="scheduled"
+                    checked={editFormData.isScheduledQuery || false}
+                    onCheckedChange={(checked) => setEditFormData({ ...editFormData, isScheduledQuery: checked })}
+                  />
+                  <Label htmlFor="scheduled" className="text-sm font-medium text-muted-foreground">
+                    Scheduled query
+                  </Label>
+                </div>
+
                 <div>
-                  <span className="text-sm font-medium text-muted-foreground">Type</span>
-                  <p className="text-sm mt-1">{table.tableType}</p>
+                  <Label htmlFor="link" className="text-sm font-medium text-muted-foreground">
+                    Link (optional)
+                  </Label>
+                  <Input
+                    id="link"
+                    value={editFormData.link || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, link: e.target.value })}
+                    placeholder="https://console.cloud.google.com/bigquery..."
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="description" className="text-sm font-medium text-muted-foreground">
+                    Description (optional)
+                  </Label>
+                  <Textarea
+                    id="description"
+                    value={editFormData.description || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                    placeholder="Describe the purpose of this table..."
+                    rows={3}
+                    className="mt-1"
+                  />
                 </div>
               </div>
-
-              {table.isScheduledQuery && (
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium text-primary">Scheduled query</span>
-                </div>
-              )}
-
-              {table.description && (
+            ) : (
+              <div className="space-y-3">
                 <div>
-                  <span className="text-sm font-medium text-muted-foreground">Description</span>
-                  <p className="text-sm mt-1">{table.description}</p>
+                  <span className="text-sm font-medium text-muted-foreground">Dataset</span>
+                  <p className="text-sm mt-1">{table.dataset}</p>
                 </div>
-              )}
+                
+                <div className="flex gap-4">
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Layer</span>
+                    <div className="mt-1">
+                      <Badge variant={getLayerVariant(table.layer)}>
+                        {table.layer}
+                      </Badge>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Type</span>
+                    <p className="text-sm mt-1">{table.tableType}</p>
+                  </div>
+                </div>
 
-              {table.link && (
-                <div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => window.open(table.link, '_blank')}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    View in BigQuery
-                  </Button>
-                </div>
-              )}
-            </div>
+                {table.isScheduledQuery && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">Scheduled query</span>
+                  </div>
+                )}
+
+                {table.description && (
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Description</span>
+                    <p className="text-sm mt-1">{table.description}</p>
+                  </div>
+                )}
+
+                {table.link && (
+                  <div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => window.open(table.link, '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      View in BigQuery
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Columns Section */}
             {areColumnsAvailable() && !columnsError && (
@@ -258,17 +464,20 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     Upstream tables ({upstreamTables.size})
                   </h3>
                   {onConnectUpstream && (
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="gap-1">
                           <Plus className="h-3 w-3" />
-                          Add
+                          Link upstream
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-64">
+                      <DropdownMenuContent align="end" className="w-64 max-h-96 overflow-y-auto">
+                        <DropdownMenuItem disabled className="font-semibold text-xs">
+                          Select upstream table
+                        </DropdownMenuItem>
                         {Array.from(parsedData.tables.values())
                           .filter(t => t.id !== table.id && !upstreamTables.has(t.id))
-                          .slice(0, 15)
+                          .sort((a, b) => a.name.localeCompare(b.name))
                           .map(t => (
                             <DropdownMenuItem 
                               key={`upstream-${t.id}`}
@@ -334,17 +543,20 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     Downstream tables ({downstreamTables.size})
                   </h3>
                   {onConnectDownstream && (
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="sm" className="gap-1">
                           <Plus className="h-3 w-3" />
-                          Add
+                          Link downstream
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-64">
+                      <DropdownMenuContent align="end" className="w-64 max-h-96 overflow-y-auto">
+                        <DropdownMenuItem disabled className="font-semibold text-xs">
+                          Select downstream table
+                        </DropdownMenuItem>
                         {Array.from(parsedData.tables.values())
                           .filter(t => t.id !== table.id && !downstreamTables.has(t.id))
-                          .slice(0, 15)
+                          .sort((a, b) => a.name.localeCompare(b.name))
                           .map(t => (
                             <DropdownMenuItem 
                               key={`downstream-${t.id}`}
@@ -414,12 +626,15 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="gap-1">
                         <Plus className="h-3 w-3" />
-                        Add
+                        Link dashboard
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuContent align="end" className="w-64 max-h-96 overflow-y-auto">
+                      <DropdownMenuItem disabled className="font-semibold text-xs">
+                        Select dashboard to connect
+                      </DropdownMenuItem>
                       {Array.from(parsedData.dashboards.values())
-                        .slice(0, 15)
+                        .sort((a, b) => a.name.localeCompare(b.name))
                         .map(d => (
                           <DropdownMenuItem 
                             key={`dashboard-${d.id}`}
@@ -434,7 +649,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                           >
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{d.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{d.businessArea}</p>
+                              <p className="text-xs text-muted-foreground truncate">{d.businessArea || 'No business area'}</p>
                             </div>
                           </DropdownMenuItem>
                         ))

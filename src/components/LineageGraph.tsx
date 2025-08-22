@@ -467,7 +467,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
             const svgY = event.clientY - svgRect.top;
             
             // Convert to graph coordinates
-            const transform = d3.zoomTransform(svgRef.current);
+            const transform = d3.zoomTransform(svgRef.current!);
             const graphX = (svgX - transform.x) / transform.k;
             const graphY = (svgY - transform.y) / transform.k;
             
@@ -519,7 +519,22 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
 
   // Handle context menu click outside
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Don't close context menus if clicking on dropdown menu elements or sheet panels
+      const target = event.target as Element;
+      if (target && (
+        target.closest('[data-radix-dropdown-menu-content]') ||
+        target.closest('[data-radix-dropdown-menu-trigger]') ||
+        target.closest('[role="menuitem"]') ||
+        target.closest('[role="menu"]') ||
+        target.closest('[data-radix-dialog-content]') ||
+        target.closest('[data-radix-sheet-content]') ||
+        target.closest('.sheet-content') ||
+        target.closest('[role="dialog"]')
+      )) {
+        return;
+      }
+
       if (contextMenu) {
         setContextMenu(null);
       }

@@ -129,7 +129,7 @@ const filterNodes = (
     }
     
     if (include) {
-      const graphNode = { ...table, nodeType: 'table' };
+      const graphNode: GraphNode = { ...table, nodeType: 'table' as const };
       
       // If table has an initial position from canvas click, apply it
       if ((table as any).initialPosition) {
@@ -173,7 +173,7 @@ const getDashboardNodes = (
     }
     
     if (include) {
-      const graphNode = { ...dashboard, nodeType: 'dashboard' };
+      const graphNode: GraphNode = { ...dashboard, nodeType: 'dashboard' as const };
       
       // If dashboard has an initial position from canvas click, apply it
       if ((dashboard as any).initialPosition) {
@@ -294,6 +294,8 @@ export const getLayerColor = (layer: string): string => {
       return '#3b82f6'; // blue
     case 'Target':
       return '#f59e0b'; // amber
+    case 'Reporting':
+      return '#ef4444'; // red
     default:
       return '#6b7280'; // gray
   }

@@ -21,7 +21,7 @@ export const testTableColumnsAccess = async (): Promise<{ exists: boolean; error
 
   try {
     console.log('Testing table_columns access...');
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('table_columns')
       .select('*', { count: 'exact', head: true });
     
