@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import LineageGraph from './components/LineageGraph';
+import DAGLineageGraph from './components/DAGLineageGraph';
 import TableDetails from './components/TableDetails';
 import SearchFilter from './components/SearchFilter';
 import ProjectTabs from './components/ProjectTabs';
@@ -51,6 +52,7 @@ function AppContent() {
   const [createDashboardDialogOpen, setCreateDashboardDialogOpen] = useState(false);
   const [dashboardConnectionNode, setDashboardConnectionNode] = useState<GraphNode | null>(null);
   const [canvasClickPosition, setCanvasClickPosition] = useState<{ x: number; y: number } | null>(null);
+  const [layoutMode, setLayoutMode] = useState<'force' | 'dag'>('force');
 
   useEffect(() => {
     const checkAuthentication = async () => {
@@ -952,6 +954,28 @@ function AppContent() {
 
           <div className="flex-1 relative bg-muted/5">
             
+            {/* Layout Mode Selector */}
+            <div className="absolute top-4 left-4 z-20">
+              <div className="flex gap-1 bg-card border rounded-lg p-1 shadow-sm">
+                <Button
+                  variant={layoutMode === 'force' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLayoutMode('force')}
+                  className="text-xs h-8 px-3"
+                >
+                  Force Layout
+                </Button>
+                <Button
+                  variant={layoutMode === 'dag' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLayoutMode('dag')}
+                  className="text-xs h-8 px-3"
+                >
+                  DAG Layout
+                </Button>
+              </div>
+            </div>
+            
             {/* Loading overlay when switching projects */}
             {loading && (
               <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-30 flex items-center justify-center">
@@ -962,18 +986,34 @@ function AppContent() {
               </div>
             )}
             
-            <LineageGraph
-              data={graphData}
-              onNodeClick={handleNodeClick}
-              onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
-              onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
-              onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
-              onDashboardAdd={isSupabaseEnabled && activeProject ? handleDashboardAdd : undefined}
-              onCanvasCreateTable={isSupabaseEnabled && activeProject ? handleCanvasCreateTable : undefined}
-              onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
-              highlightedNodes={highlightedNodes}
-              focusedNodeId={filters.focusedTableId || filters.focusedDashboardId}
-            />
+            {/* Conditional Graph Rendering */}
+            {layoutMode === 'force' ? (
+              <LineageGraph
+                data={graphData}
+                onNodeClick={handleNodeClick}
+                onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
+                onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
+                onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
+                onDashboardAdd={isSupabaseEnabled && activeProject ? handleDashboardAdd : undefined}
+                onCanvasCreateTable={isSupabaseEnabled && activeProject ? handleCanvasCreateTable : undefined}
+                onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
+                highlightedNodes={highlightedNodes}
+                focusedNodeId={filters.focusedTableId || filters.focusedDashboardId}
+              />
+            ) : (
+              <DAGLineageGraph
+                data={graphData}
+                onNodeClick={handleNodeClick}
+                onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
+                onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
+                onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
+                onDashboardAdd={isSupabaseEnabled && activeProject ? handleDashboardAdd : undefined}
+                onCanvasCreateTable={isSupabaseEnabled && activeProject ? handleCanvasCreateTable : undefined}
+                onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
+                highlightedNodes={highlightedNodes}
+                focusedNodeId={filters.focusedTableId || filters.focusedDashboardId}
+              />
+            )}
             
             {graphData.nodes.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center">
