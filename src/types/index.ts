@@ -92,6 +92,8 @@ export interface FilterOptions {
   showScheduledOnly: boolean;
   searchTerm: string;
   selectedDashboard?: string;
+  focusedTableId?: string;
+  focusedDashboardId?: string;
 }
 
 export interface CreateColumnRequest {

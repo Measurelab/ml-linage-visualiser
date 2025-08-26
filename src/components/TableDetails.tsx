@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, ParsedData, Column, CreateColumnRequest } from '@/types';
-import { getUpstreamTables, getDownstreamTables } from '@/utils/graphBuilder';
+import { getUpstreamTables, getDownstreamTables, getUpstreamTablesWithDistance, getDownstreamTablesWithDistance } from '@/utils/graphBuilder';
 import { getTableColumns, createColumn, deleteColumn, createBulkColumns, areColumnsAvailable } from '@/services/columns';
 import { updateTable } from '@/services/lineageData';
 import { isSupabaseEnabled } from '@/services/supabase';
@@ -8,13 +8,6 @@ import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X } from 'luc
 import ColumnList from './ColumnList';
 import AddColumnModal from './AddColumnModal';
 import UploadSchemaModal from './UploadSchemaModal';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -117,8 +110,48 @@ const TableDetails: React.FC<TableDetailsProps> = ({
 
   if (!table) return null;
 
+  // Helper function to get table by ID - defined first to avoid reference errors
+  const getTableById = (id: string) => parsedData.tables.get(id);
+
   const upstreamTables = getUpstreamTables(table.id, parsedData);
   const downstreamTables = getDownstreamTables(table.id, parsedData);
+  
+  // Get tables with distances for grouping
+  const upstreamTablesWithDistance = getUpstreamTablesWithDistance(table.id, parsedData);
+  const downstreamTablesWithDistance = getDownstreamTablesWithDistance(table.id, parsedData);
+  
+  // Helper function to group tables by distance
+  const groupTablesByDistance = (tablesWithDistance: Map<string, number>) => {
+    const groups = new Map<number, string[]>();
+    
+    tablesWithDistance.forEach((distance, tableId) => {
+      if (!groups.has(distance)) {
+        groups.set(distance, []);
+      }
+      groups.get(distance)!.push(tableId);
+    });
+    
+    // Sort each group alphabetically
+    groups.forEach((tableIds) => {
+      tableIds.sort((a, b) => {
+        const tableA = getTableById(a);
+        const tableB = getTableById(b);
+        return (tableA?.name || '').localeCompare(tableB?.name || '');
+      });
+    });
+    
+    return groups;
+  };
+  
+  const upstreamGroups = groupTablesByDistance(upstreamTablesWithDistance);
+  const downstreamGroups = groupTablesByDistance(downstreamTablesWithDistance);
+  
+  // Helper function to get distance badge color
+  const getDistanceBadgeColor = (distance: number) => {
+    if (distance === 1) return 'bg-green-100 text-green-800 border-green-200';
+    if (distance === 2) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    return 'bg-orange-100 text-orange-800 border-orange-200';
+  };
 
   const loadColumns = async () => {
     if (!table) return;
@@ -172,8 +205,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
     }
   };
 
-  const getTableById = (id: string) => parsedData.tables.get(id);
-
   const getLayerVariant = (layer: string): "default" | "success" | "info" | "warning" | "destructive" => {
     switch (layer) {
       case 'Raw': return 'success';
@@ -213,16 +244,23 @@ const TableDetails: React.FC<TableDetailsProps> = ({
     }
   };
 
+  if (!isOpen || !table) return null;
+
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className="w-[600px] sm:w-[800px]">
-        <SheetHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <SheetTitle>{isEditing ? 'Edit table' : table.name}</SheetTitle>
-              <SheetDescription>{table.id}</SheetDescription>
-            </div>
-            <div className="flex items-center gap-2">
+    <div 
+      className={`fixed top-0 right-0 h-full bg-card border-l shadow-lg transition-transform duration-300 ease-in-out z-40 ${
+        isOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}
+      style={{ width: '600px' }}
+    >
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold truncate">{isEditing ? 'Edit table' : table.name}</h2>
+            <p className="text-sm text-muted-foreground">{table.id}</p>
+          </div>
+          <div className="flex items-center gap-2">
               {activeProjectId && (
                 isEditing ? (
                   <>
@@ -256,12 +294,20 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                   </Button>
                 )
               )}
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="flex-shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-        </SheetHeader>
+        </div>
         
-        <ScrollArea className="h-[calc(100vh-120px)] mt-6">
-          <div className="space-y-4 px-2">
+        {/* Content */}
+        <ScrollArea className="flex-1 p-4">
+          <div className="space-y-4">
             {isEditing ? (
               <div className="space-y-4">
                 <div>
@@ -508,30 +554,56 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     </DropdownMenu>
                   )}
                 </div>
-                <div className="space-y-2">
-                  {Array.from(upstreamTables).map(id => {
-                    const upTable = getTableById(id);
-                    if (!upTable) return null;
-                    return (
-                      <Card
-                        key={id}
-                        className="cursor-pointer hover:shadow-sm transition-all"
-                        onClick={() => onTableSelect(id)}
-                      >
-                        <CardContent className="p-2">
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">{upTable.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{upTable.dataset}</p>
-                            </div>
-                            <Badge variant={getLayerVariant(upTable.layer)} className="ml-2">
-                              {upTable.layer}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                <div className="space-y-4">
+                  {Array.from(upstreamGroups.entries())
+                    .sort(([a], [b]) => a - b) // Sort by distance
+                    .map(([distance, tableIds]) => (
+                      <div key={`upstream-distance-${distance}`} className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {distance === 1 ? 'Direct connections' : `${distance} steps away`}
+                        </h4>
+                        <div className="space-y-2">
+                          {tableIds.map(id => {
+                            const upTable = getTableById(id);
+                            if (!upTable) return null;
+                            return (
+                              <Card
+                                key={id}
+                                className={`cursor-pointer hover:shadow-sm transition-all ${
+                                  distance === 1 ? 'border-green-200' : 
+                                  distance === 2 ? 'border-yellow-200' : 
+                                  'border-orange-200'
+                                }`}
+                                onClick={() => onTableSelect(id)}
+                              >
+                                <CardContent className="p-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium truncate">{upTable.name}</p>
+                                      <p className="text-xs text-muted-foreground truncate">{upTable.dataset}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs px-1.5 py-0 h-5 ${getDistanceBadgeColor(distance)}`}
+                                      >
+                                        {distance}
+                                      </Badge>
+                                      <Badge variant={getLayerVariant(upTable.layer)} className="ml-0">
+                                        {upTable.layer}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  {upstreamTables.size === 0 && (
+                    <p className="text-sm text-muted-foreground">No upstream tables</p>
+                  )}
                 </div>
               </div>
             )}
@@ -587,30 +659,56 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     </DropdownMenu>
                   )}
                 </div>
-                <div className="space-y-2">
-                  {Array.from(downstreamTables).map(id => {
-                    const downTable = getTableById(id);
-                    if (!downTable) return null;
-                    return (
-                      <Card
-                        key={id}
-                        className="cursor-pointer hover:shadow-sm transition-all"
-                        onClick={() => onTableSelect(id)}
-                      >
-                        <CardContent className="p-2">
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">{downTable.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{downTable.dataset}</p>
-                            </div>
-                            <Badge variant={getLayerVariant(downTable.layer)} className="ml-2">
-                              {downTable.layer}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                <div className="space-y-4">
+                  {Array.from(downstreamGroups.entries())
+                    .sort(([a], [b]) => a - b) // Sort by distance
+                    .map(([distance, tableIds]) => (
+                      <div key={`downstream-distance-${distance}`} className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {distance === 1 ? 'Direct connections' : `${distance} steps away`}
+                        </h4>
+                        <div className="space-y-2">
+                          {tableIds.map(id => {
+                            const downTable = getTableById(id);
+                            if (!downTable) return null;
+                            return (
+                              <Card
+                                key={id}
+                                className={`cursor-pointer hover:shadow-sm transition-all ${
+                                  distance === 1 ? 'border-green-200' : 
+                                  distance === 2 ? 'border-yellow-200' : 
+                                  'border-orange-200'
+                                }`}
+                                onClick={() => onTableSelect(id)}
+                              >
+                                <CardContent className="p-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium truncate">{downTable.name}</p>
+                                      <p className="text-xs text-muted-foreground truncate">{downTable.dataset}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs px-1.5 py-0 h-5 ${getDistanceBadgeColor(distance)}`}
+                                      >
+                                        {distance}
+                                      </Badge>
+                                      <Badge variant={getLayerVariant(downTable.layer)} className="ml-0">
+                                        {downTable.layer}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  {downstreamTables.size === 0 && (
+                    <p className="text-sm text-muted-foreground">No downstream tables</p>
+                  )}
                 </div>
               </div>
             )}
@@ -678,7 +776,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
             )}
           </div>
         </ScrollArea>
-      </SheetContent>
+      </div>
 
       {/* Add Column Modal */}
       {areColumnsAvailable() && (
@@ -701,7 +799,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
           tableName={table.name}
         />
       )}
-    </Sheet>
+    </div>
   );
 };
 

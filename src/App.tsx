@@ -1,9 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import LineageGraph from './components/LineageGraph';
 import TableDetails from './components/TableDetails';
-import DashboardView from './components/DashboardView';
 import SearchFilter from './components/SearchFilter';
-import Legend from './components/Legend';
 import ProjectTabs from './components/ProjectTabs';
 import ExcelUpload from './components/ExcelUpload';
 import DataUpload from './components/DataUpload';
@@ -19,7 +17,7 @@ import { getAllProjects, createProject } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
 import { buildGraphData } from './utils/graphBuilder';
 import { ParsedData, FilterOptions, Table, GraphNode, Project, TableLineage, Dashboard, DashboardTable } from './types';
-import { Loader2, PanelLeftClose, PanelLeftOpen, Upload } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -32,8 +30,6 @@ function AppContent() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [selectedDashboardDetails, setSelectedDashboardDetails] = useState<Dashboard | null>(null);
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
-  const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadMode, setUploadMode] = useState<'excel' | 'csv'>('excel');
@@ -43,7 +39,9 @@ function AppContent() {
     tableTypes: [],
     showScheduledOnly: false,
     searchTerm: '',
-    selectedDashboard: undefined
+    selectedDashboard: undefined,
+    focusedTableId: undefined,
+    focusedDashboardId: undefined
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tableToDelete, setTableToDelete] = useState<GraphNode | null>(null);
@@ -131,7 +129,6 @@ function AppContent() {
       setSelectedTable(null);
       setSelectedDashboardDetails(null);
       setHighlightedNodes(new Set());
-      setSelectedDashboard(null);
       
       // Only load data if we don't already have it (e.g., from upload)
       if (!parsedData) {
@@ -143,7 +140,6 @@ function AppContent() {
       setSelectedTable(null);
       setSelectedDashboardDetails(null);
       setHighlightedNodes(new Set());
-      setSelectedDashboard(null);
     }
   }, [activeProject]);
 
@@ -274,20 +270,36 @@ function AppContent() {
 
   const handleNodeClick = (node: GraphNode) => {
     if (node.nodeType === 'dashboard') {
-      // Dashboard clicked - show dashboard details panel
+      // Dashboard clicked - show dashboard details panel and focus on its connections
       const dashboard = parsedData?.dashboards.get(node.id);
       if (dashboard) {
         setSelectedDashboardDetails(dashboard);
         // Clear table selection when showing dashboard details
         setSelectedTable(null);
+        
+        // Toggle focus: if clicking the same dashboard, unfocus; otherwise focus on the new dashboard
+        setFilters(prev => ({
+          ...prev,
+          focusedDashboardId: prev.focusedDashboardId === node.id ? undefined : node.id,
+          focusedTableId: undefined, // Clear table focus when focusing on a dashboard
+          selectedDashboard: undefined
+        }));
       }
     } else {
-      // Table clicked - show table details
+      // Table clicked - show table details and focus on its lineage
       const table = parsedData?.tables.get(node.id);
       if (table) {
         setSelectedTable(table);
         // Clear dashboard details when showing table details
         setSelectedDashboardDetails(null);
+        
+        // Toggle focus: if clicking the same node, unfocus; otherwise focus on the new node
+        setFilters(prev => ({
+          ...prev,
+          focusedTableId: prev.focusedTableId === node.id ? undefined : node.id,
+          focusedDashboardId: undefined, // Clear dashboard focus when focusing on a table
+          selectedDashboard: undefined
+        }));
       }
     }
   };
@@ -298,6 +310,14 @@ function AppContent() {
       setSelectedTable(table);
       // Clear dashboard details when selecting a table
       setSelectedDashboardDetails(null);
+      
+      // Focus on the selected table's lineage
+      setFilters(prev => ({
+        ...prev,
+        focusedTableId: tableId,
+        focusedDashboardId: undefined,
+        selectedDashboard: undefined
+      }));
     }
   };
 
@@ -611,7 +631,7 @@ function AppContent() {
     
     try {
       // Generate unique dashboard ID
-      const dashboardId = `dashboard_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const dashboardId = `dashboard_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
       
       const newDashboard: Dashboard = {
         id: dashboardId,
@@ -717,38 +737,13 @@ function AppContent() {
     }
   };
 
-  const handleBackToProjects = async () => {
+  const handleBackToProjects = () => {
+    // Navigate back to project selection interface
     setShowUpload(false);
-    
-    // Clear current project state
+    setActiveProject(null);  // This will trigger the ProjectTabs interface
     setParsedData(null);
-    setActiveProject(null);
-    
-    // Reinitialize the app to load available projects
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Check if we have any projects (filtered by portal if in iframe, unless admin)
-      const projects = await getAllProjects(portalName, isAdmin);
-      
-      if (projects.length === 0) {
-        // No projects exist, show upload interface
-        setShowUpload(true);
-        setLoading(false);
-        return;
-      }
-      
-      // Set the first project as active
-      setActiveProject(projects[0]);
-      
-    } catch (err) {
-      console.error('Failed to load projects:', err);
-      setError('Failed to load projects. Please try refreshing the page.');
-      setShowUpload(true);
-    } finally {
-      setLoading(false);
-    }
+    setError(null);
+    setLoading(false);
   };
 
   // Show login screen if not authenticated
@@ -841,7 +836,52 @@ function AppContent() {
     );
   }
 
-  if (!parsedData && !showUpload) {
+  // Show project selection interface when no active project and Supabase is enabled
+  if (!activeProject && !showUpload && isSupabaseEnabled) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="bg-card shadow-sm border-b">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-medium">BigQuery Lineage Visualizer</h1>
+                {isAdmin && <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-semibold">MEASURELAB ADMIN</span>}
+                <p className="text-sm text-muted-foreground mt-1">
+                  Select a project to view its lineage data
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUpload(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Create New Project
+              </Button>
+            </div>
+          </div>
+          
+          {/* Project Tabs */}
+          <div className="border-t">
+            <ProjectTabs
+              activeProject={activeProject}
+              onProjectSelect={handleProjectSelect}
+            />
+          </div>
+        </header>
+        
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-lg font-medium mb-2">Select a project to get started</h2>
+            <p className="text-muted-foreground">Choose a project from the tabs above or create a new one</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show "No Data Available" only for non-Supabase environments or when data is missing for an active project
+  if (!parsedData && !showUpload && (!isSupabaseEnabled || activeProject)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -900,34 +940,13 @@ function AppContent() {
       </header>
 
       <div className="flex h-[calc(100vh-80px)]">
-        <div className={`${sidebarCollapsed ? 'w-12' : 'w-[480px]'} bg-muted/10 border-r overflow-y-auto transition-all duration-300 ease-in-out`}>
-          
-          {!sidebarCollapsed && (
-            <div className="p-4 space-y-4">
-              <Legend />
-              <DashboardView
-                parsedData={parsedData}
-                selectedDashboard={selectedDashboard}
-                onDashboardSelect={(dashboardId) => {
-                  setSelectedDashboard(dashboardId);
-                  // Update filters to include the selected dashboard
-                  setFilters(prev => ({
-                    ...prev,
-                    selectedDashboard: dashboardId || undefined
-                  }));
-                }}
-                onTableHighlight={setHighlightedNodes}
-              />
-            </div>
-          )}
-        </div>
-
         <div className="flex-1 flex flex-col">
           <div className="p-4 bg-card">
             <SearchFilter
               parsedData={parsedData}
               filters={filters}
               onFiltersChange={setFilters}
+              onTableHighlight={setHighlightedNodes}
             />
           </div>
 
@@ -943,20 +962,6 @@ function AppContent() {
               </div>
             )}
             
-            {/* Sidebar Toggle Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 left-4 z-20 h-10 w-10 bg-background/80 hover:bg-background shadow-md"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen className="h-5 w-5" />
-              ) : (
-                <PanelLeftClose className="h-5 w-5" />
-              )}
-            </Button>
-            
             <LineageGraph
               data={graphData}
               onNodeClick={handleNodeClick}
@@ -967,7 +972,7 @@ function AppContent() {
               onCanvasCreateTable={isSupabaseEnabled && activeProject ? handleCanvasCreateTable : undefined}
               onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
               highlightedNodes={highlightedNodes}
-              focusedNodeId={selectedTable?.id}
+              focusedNodeId={filters.focusedTableId || filters.focusedDashboardId}
             />
             
             {graphData.nodes.length === 0 && (
@@ -1003,9 +1008,10 @@ function AppContent() {
                             tableTypes: [],
                             showScheduledOnly: false,
                             searchTerm: '',
-                            selectedDashboard: undefined
+                            selectedDashboard: undefined,
+                            focusedTableId: undefined,
+                            focusedDashboardId: undefined
                           });
-                          setSelectedDashboard(null);
                           setHighlightedNodes(new Set());
                         }}
                         variant="link"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, X } from 'lucide-react';
+import { Search, Filter, X, BarChart3 } from 'lucide-react';
 import { FilterOptions, LayerType, TableType, ParsedData } from '@/types';
+import { getTablesByDashboard } from '@/utils/graphBuilder';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -12,15 +13,18 @@ interface SearchFilterProps {
   parsedData: ParsedData;
   filters: FilterOptions;
   onFiltersChange: (filters: FilterOptions) => void;
+  onTableHighlight?: (tableIds: Set<string>) => void;
 }
 
 const SearchFilter: React.FC<SearchFilterProps> = ({
   parsedData,
   filters,
-  onFiltersChange
+  onFiltersChange,
+  onTableHighlight
 }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [availableDatasets, setAvailableDatasets] = useState<string[]>([]);
+  const [availableDashboards, setAvailableDashboards] = useState<Array<{id: string, name: string, tableCount: number}>>([]);
 
   useEffect(() => {
     const datasets = new Set<string>();
@@ -28,6 +32,15 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
       if (table.dataset) datasets.add(table.dataset);
     });
     setAvailableDatasets(Array.from(datasets).sort());
+
+    // Get available dashboards with table counts
+    const dashboards = Array.from(parsedData.dashboards.values()).map(dashboard => ({
+      id: dashboard.id,
+      name: dashboard.name,
+      tableCount: parsedData.dashboardTables.filter(dt => dt.dashboardId === dashboard.id).length
+    })).sort((a, b) => a.name.localeCompare(b.name));
+    
+    setAvailableDashboards(dashboards);
   }, [parsedData]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,6 +83,28 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     });
   };
 
+  const handleDashboardSelect = (dashboardId: string) => {
+    const isCurrentlySelected = filters.selectedDashboard === dashboardId;
+    
+    if (isCurrentlySelected) {
+      // Deselect dashboard
+      onFiltersChange({
+        ...filters,
+        selectedDashboard: undefined
+      });
+      onTableHighlight?.(new Set());
+    } else {
+      // Select dashboard
+      onFiltersChange({
+        ...filters,
+        selectedDashboard: dashboardId
+      });
+      // Highlight connected tables
+      const tableIds = getTablesByDashboard(dashboardId, parsedData);
+      onTableHighlight?.(tableIds);
+    }
+  };
+
 
   const clearFilters = () => {
     onFiltersChange({
@@ -78,7 +113,17 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
       tableTypes: [],
       showScheduledOnly: false,
       searchTerm: '',
-      selectedDashboard: undefined
+      selectedDashboard: undefined,
+      focusedTableId: undefined,
+      focusedDashboardId: undefined
+    });
+  };
+
+  const clearFocus = () => {
+    onFiltersChange({
+      ...filters,
+      focusedTableId: undefined,
+      focusedDashboardId: undefined
     });
   };
 
@@ -101,9 +146,37 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
   };
 
 
+  // Get the focused table or dashboard name
+  const focusedTable = filters.focusedTableId ? parsedData.tables.get(filters.focusedTableId) : null;
+  const focusedDashboard = filters.focusedDashboardId ? parsedData.dashboards.get(filters.focusedDashboardId) : null;
+  const hasFocus = focusedTable || focusedDashboard;
+
   return (
     <Card>
       <CardContent className="py-2 px-4">
+        {/* Show focused item indicator */}
+        {hasFocus && (
+          <div className="mb-2 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="default" className="bg-blue-600">
+                {focusedDashboard ? 'Dashboard Focus' : 'Table Focus'}
+              </Badge>
+              <span className="text-sm font-medium">
+                Viewing connections for: <strong>{focusedTable?.name || focusedDashboard?.name}</strong>
+              </span>
+            </div>
+            <Button
+              onClick={clearFocus}
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 hover:bg-blue-100"
+            >
+              <X className="h-4 w-4" />
+              Clear focus
+            </Button>
+          </div>
+        )}
+        
         <div className="flex items-center gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -213,6 +286,37 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
                           {dataset}
                         </label>
                       </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+
+            {availableDashboards.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 className="h-4 w-4" />
+                  <h3 className="text-sm font-semibold">Dashboards</h3>
+                </div>
+                <ScrollArea className="h-40 rounded-md border p-3">
+                  <div className="space-y-2">
+                    {availableDashboards.map(dashboard => (
+                      <Button
+                        key={dashboard.id}
+                        variant={filters.selectedDashboard === dashboard.id ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => handleDashboardSelect(dashboard.id)}
+                        className="w-full justify-start h-auto p-2"
+                      >
+                        <div className="flex flex-col items-start w-full">
+                          <div className="font-medium text-xs truncate w-full text-left">
+                            {dashboard.name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {dashboard.tableCount} tables
+                          </div>
+                        </div>
+                      </Button>
                     ))}
                   </div>
                 </ScrollArea>

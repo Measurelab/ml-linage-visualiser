@@ -274,6 +274,32 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     // Add different shapes for different node types
     node.each(function(d) {
       const nodeGroup = d3.select(this);
+      const isFocused = focusedNodeId === d.id;
+      const isSelected = selectedNode === d.id;
+      const isHighlighted = highlightedNodes.has(d.id);
+      
+      // Determine stroke and opacity based on focus/selection state
+      const getStroke = () => {
+        if (isFocused) return '#2563eb'; // Blue for focused node
+        if (isSelected) return '#1f2937'; // Dark gray for selected
+        if (isHighlighted) return '#ef4444'; // Red for highlighted
+        return '#fff'; // White default
+      };
+      
+      const getStrokeWidth = () => {
+        if (isFocused) return 4; // Thickest for focused
+        if (isSelected) return 3;
+        if (isHighlighted) return 2;
+        return 1.5;
+      };
+      
+      const getOpacity = () => {
+        // When a node is focused, show full opacity for all nodes in the filtered graph
+        if (focusedNodeId) return isFocused ? 1 : 0.7;
+        // Regular highlighting behavior
+        if (highlightedNodes.size === 0) return 1;
+        return isHighlighted ? 1 : 0.3;
+      };
       
       if (d.nodeType === 'dashboard') {
         // Rectangle for dashboards
@@ -284,17 +310,40 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
           .attr('y', -getNodeRadius(d) * 0.75)
           .attr('rx', 4) // rounded corners
           .attr('fill', getNodeColor(d))
-          .attr('stroke', selectedNode === d.id ? '#1f2937' : highlightedNodes.has(d.id) ? '#ef4444' : '#fff')
-          .attr('stroke-width', selectedNode === d.id ? 3 : highlightedNodes.has(d.id) ? 2 : 1.5)
-          .attr('opacity', highlightedNodes.size === 0 ? 1 : highlightedNodes.has(d.id) ? 1 : 0.3);
+          .attr('stroke', getStroke())
+          .attr('stroke-width', getStrokeWidth())
+          .attr('opacity', getOpacity());
       } else {
         // Circle for tables
         nodeGroup.append('circle')
           .attr('r', getNodeRadius(d))
           .attr('fill', getNodeColor(d))
-          .attr('stroke', selectedNode === d.id ? '#1f2937' : highlightedNodes.has(d.id) ? '#ef4444' : '#fff')
-          .attr('stroke-width', selectedNode === d.id ? 3 : highlightedNodes.has(d.id) ? 2 : 1.5)
-          .attr('opacity', highlightedNodes.size === 0 ? 1 : highlightedNodes.has(d.id) ? 1 : 0.3);
+          .attr('stroke', getStroke())
+          .attr('stroke-width', getStrokeWidth())
+          .attr('opacity', getOpacity());
+      }
+      
+      // Add a subtle glow effect for the focused node
+      if (isFocused) {
+        const shape = d.nodeType === 'dashboard' ? 'rect' : 'circle';
+        const glowElement = nodeGroup.insert(shape, ':first-child');
+        
+        if (d.nodeType === 'dashboard') {
+          glowElement
+            .attr('width', getNodeRadius(d) * 2 + 8)
+            .attr('height', getNodeRadius(d) * 1.5 + 8)
+            .attr('x', -getNodeRadius(d) - 4)
+            .attr('y', -getNodeRadius(d) * 0.75 - 4)
+            .attr('rx', 6);
+        } else {
+          glowElement.attr('r', getNodeRadius(d) + 4);
+        }
+        
+        glowElement
+          .attr('fill', 'none')
+          .attr('stroke', '#2563eb')
+          .attr('stroke-width', 2)
+          .attr('opacity', 0.3);
       }
     });
 
@@ -502,7 +551,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       simulation.stop();
       tooltip.remove();
     };
-  }, [data, highlightedNodes, selectedNode, onNodeClick, onNodeDelete, onNodeAddUpstream, onNodeAddDownstream, width, height]);
+  }, [data, highlightedNodes, selectedNode, focusedNodeId, onNodeClick, onNodeDelete, onNodeAddUpstream, onNodeAddDownstream, width, height]);
 
   // Handle focusing on a specific node when focusedNodeId changes
   useEffect(() => {
