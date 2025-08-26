@@ -123,3 +123,14 @@
 .tooltip {
   z-index: 1000;
 }
+
+/* Helper classes for D3.js to access Measurelab theme colors */
+.chart-color-1 { color: var(--chart-1); }
+.chart-color-2 { color: var(--chart-2); }
+.chart-color-3 { color: var(--chart-3); }
+.chart-color-4 { color: var(--chart-4); }
+.chart-color-5 { color: var(--chart-5); }
+.primary-color { color: var(--primary); }
+.muted-foreground-color { color: var(--muted-foreground); }
+.accent-color { color: var(--accent); }
+.destructive-color { color: var(--destructive); }

@@ -3,6 +3,16 @@ import * as d3 from 'd3';
 import { GraphData, GraphNode, GraphLink } from '../types';
 import { getNodeColor } from '../utils/graphBuilder';
 
+// Helper function to get CSS variable color for D3
+const getCSSColor = (variableName: string, fallback: string = '#999'): string => {
+  if (typeof window !== 'undefined') {
+    const computedStyle = getComputedStyle(document.documentElement);
+    const color = computedStyle.getPropertyValue(variableName).trim();
+    return color || fallback;
+  }
+  return fallback;
+};
+
 interface LineageGraphProps {
   data: GraphData;
   onNodeClick?: (node: GraphNode) => void;
@@ -229,7 +239,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .selectAll('line')
       .data(data.links)
       .enter().append('line')
-      .attr('stroke', '#999')
+      .attr('stroke', getCSSColor('--muted-foreground', '#999'))
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 1)
       .attr('marker-end', (d: any) => {
@@ -258,7 +268,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .attr('markerHeight', 8)
       .append('svg:path')
       .attr('d', 'M 0,-5 L 10,0 L 0,5')
-      .attr('fill', '#666')
+      .attr('fill', getCSSColor('--muted-foreground', '#666'))
       .attr('stroke', 'none');
 
     const node = g.append('g')
@@ -280,10 +290,10 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       
       // Determine stroke and opacity based on focus/selection state
       const getStroke = () => {
-        if (isFocused) return '#2563eb'; // Blue for focused node
-        if (isSelected) return '#1f2937'; // Dark gray for selected
-        if (isHighlighted) return '#ef4444'; // Red for highlighted
-        return '#fff'; // White default
+        if (isFocused) return getCSSColor('--primary', '#2563eb'); // Primary for focused node
+        if (isSelected) return getCSSColor('--foreground', '#1f2937'); // Foreground for selected
+        if (isHighlighted) return getCSSColor('--destructive', '#ef4444'); // Destructive for highlighted
+        return getCSSColor('--background', '#fff'); // Background default
       };
       
       const getStrokeWidth = () => {
@@ -341,7 +351,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
         
         glowElement
           .attr('fill', 'none')
-          .attr('stroke', '#2563eb')
+          .attr('stroke', getCSSColor('--primary', '#2563eb'))
           .attr('stroke-width', 2)
           .attr('opacity', 0.3);
       }
@@ -365,19 +375,20 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .attr('y', -15)
       .attr('text-anchor', 'middle')
       .attr('font-size', '10px')
-      .attr('fill', '#1f2937')
+      .attr('fill', getCSSColor('--foreground', '#1f2937'))
       .attr('pointer-events', 'none');
 
     const tooltip = d3.select('body').append('div')
       .attr('class', 'tooltip')
       .style('position', 'absolute')
       .style('visibility', 'hidden')
-      .style('background-color', 'white')
-      .style('border', '1px solid #d1d5db')
+      .style('background-color', getCSSColor('--popover', 'white'))
+      .style('border', `1px solid ${getCSSColor('--border', '#d1d5db')}`)
       .style('border-radius', '4px')
       .style('padding', '8px')
       .style('font-size', '12px')
-      .style('box-shadow', '0 2px 4px rgba(0,0,0,0.1)');
+      .style('box-shadow', '0 2px 4px rgba(0,0,0,0.1)')
+      .style('color', getCSSColor('--popover-foreground', '#000'));
 
     node.on('mouseover', function(_event, d) {
       const tooltipContent = d.nodeType === 'dashboard' 

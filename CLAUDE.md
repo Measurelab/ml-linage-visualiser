@@ -75,7 +75,12 @@ Uses official Measurelab design system:
 
 ## Implementation Notes
 - **D3 Integration**: Custom React wrapper around D3 force simulation
-- **Color Coding**: Green (Raw) → Blue (Inter) → Orange/Amber (Target)
+- **Color Coding**: Uses Measurelab chart colors from CSS variables:
+  - Raw: `var(--chart-1)` (green-teal)
+  - Inter: `var(--chart-2)` (blue)  
+  - Target: `var(--chart-4)` (amber-orange)
+  - Reporting: `var(--chart-5)` (red-pink)
+  - Dashboards: `var(--primary)` (Measurelab green)
 - **Scheduled Queries**: Indicated with dashed circles
 - **Performance**: Handles 179 tables + 234+ relationships smoothly
 - **Theme Integration**: Full shadcn/ui implementation with Measurelab branding

@@ -471,24 +471,34 @@ export const getTablesByDashboard = (
 };
 
 
+// Helper function to get CSS variable color
+const getCSSVariableColor = (variableName: string): string => {
+  if (typeof window !== 'undefined') {
+    const computedStyle = getComputedStyle(document.documentElement);
+    const color = computedStyle.getPropertyValue(variableName).trim();
+    return color || '#6b7280'; // fallback to gray
+  }
+  return '#6b7280'; // fallback for SSR
+};
+
 export const getLayerColor = (layer: string): string => {
   switch (layer) {
     case 'Raw':
-      return '#10b981'; // green
+      return getCSSVariableColor('--chart-1'); // Measurelab green-teal
     case 'Inter':
-      return '#3b82f6'; // blue
+      return getCSSVariableColor('--chart-2'); // Measurelab blue
     case 'Target':
-      return '#f59e0b'; // amber
+      return getCSSVariableColor('--chart-4'); // Measurelab amber-orange
     case 'Reporting':
-      return '#ef4444'; // red
+      return getCSSVariableColor('--chart-5'); // Measurelab red-pink
     default:
-      return '#6b7280'; // gray
+      return getCSSVariableColor('--muted-foreground'); // Measurelab muted
   }
 };
 
 export const getNodeColor = (node: GraphNode): string => {
   if (node.nodeType === 'dashboard') {
-    return '#8b5cf6'; // purple for dashboards
+    return getCSSVariableColor('--primary'); // Measurelab primary green
   }
   // For table nodes, use the existing layer color
   return getLayerColor((node as any).layer);
