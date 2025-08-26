@@ -4,7 +4,7 @@ import { getUpstreamTables, getDownstreamTables, getUpstreamTablesWithDistance, 
 import { getTableColumns, createColumn, deleteColumn, createBulkColumns, areColumnsAvailable } from '@/services/columns';
 import { updateTable } from '@/services/lineageData';
 import { isSupabaseEnabled } from '@/services/supabase';
-import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X } from 'lucide-react';
+import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import ColumnList from './ColumnList';
 import AddColumnModal from './AddColumnModal';
 import UploadSchemaModal from './UploadSchemaModal';
@@ -62,6 +62,9 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   const [columnsError, setColumnsError] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<Table>>({});
+  const [upstreamExpanded, setUpstreamExpanded] = useState(false);
+  const [downstreamExpanded, setDownstreamExpanded] = useState(false);
+  const [dashboardsExpanded, setDashboardsExpanded] = useState(false);
 
   // Load columns when table changes
   useEffect(() => {
@@ -506,9 +509,13 @@ const TableDetails: React.FC<TableDetailsProps> = ({
             {(upstreamTables.size > 0 || onConnectUpstream) && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold">
+                  <button 
+                    className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
+                    onClick={() => setUpstreamExpanded(!upstreamExpanded)}
+                  >
+                    {upstreamExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     Upstream tables ({upstreamTables.size})
-                  </h3>
+                  </button>
                   {onConnectUpstream && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -554,8 +561,9 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     </DropdownMenu>
                   )}
                 </div>
-                <div className="space-y-4">
-                  {Array.from(upstreamGroups.entries())
+                {upstreamExpanded && (
+                  <div className="space-y-4">
+                    {Array.from(upstreamGroups.entries())
                     .sort(([a], [b]) => a - b) // Sort by distance
                     .map(([distance, tableIds]) => (
                       <div key={`upstream-distance-${distance}`} className="space-y-2">
@@ -601,19 +609,24 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                         </div>
                       </div>
                     ))}
-                  {upstreamTables.size === 0 && (
-                    <p className="text-sm text-muted-foreground">No upstream tables</p>
-                  )}
-                </div>
+                    {upstreamTables.size === 0 && (
+                      <p className="text-sm text-muted-foreground">No upstream tables</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
             {(downstreamTables.size > 0 || onConnectDownstream) && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold">
+                  <button 
+                    className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
+                    onClick={() => setDownstreamExpanded(!downstreamExpanded)}
+                  >
+                    {downstreamExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     Downstream tables ({downstreamTables.size})
-                  </h3>
+                  </button>
                   {onConnectDownstream && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -659,8 +672,9 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     </DropdownMenu>
                   )}
                 </div>
-                <div className="space-y-4">
-                  {Array.from(downstreamGroups.entries())
+                {downstreamExpanded && (
+                  <div className="space-y-4">
+                    {Array.from(downstreamGroups.entries())
                     .sort(([a], [b]) => a - b) // Sort by distance
                     .map(([distance, tableIds]) => (
                       <div key={`downstream-distance-${distance}`} className="space-y-2">
@@ -706,10 +720,11 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                         </div>
                       </div>
                     ))}
-                  {downstreamTables.size === 0 && (
-                    <p className="text-sm text-muted-foreground">No downstream tables</p>
-                  )}
-                </div>
+                    {downstreamTables.size === 0 && (
+                      <p className="text-sm text-muted-foreground">No downstream tables</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -717,9 +732,13 @@ const TableDetails: React.FC<TableDetailsProps> = ({
             {onConnectDashboard && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold">
+                  <button 
+                    className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
+                    onClick={() => setDashboardsExpanded(!dashboardsExpanded)}
+                  >
+                    {dashboardsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     Connected dashboards
-                  </h3>
+                  </button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="gap-1">
@@ -760,12 +779,14 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <div className="space-y-2">
-                  {/* TODO: Show connected dashboards once we have a utility to get them */}
-                  <p className="text-sm text-muted-foreground italic">
-                    Use the dropdown above to connect this table to a dashboard
-                  </p>
-                </div>
+                {dashboardsExpanded && (
+                  <div className="space-y-2">
+                    {/* TODO: Show connected dashboards once we have a utility to get them */}
+                    <p className="text-sm text-muted-foreground italic">
+                      Use the dropdown above to connect this table to a dashboard
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

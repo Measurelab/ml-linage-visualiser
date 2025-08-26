@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, ExternalLink, Users, Building, Eye, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, ExternalLink, Users, Building, Eye, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,8 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
   onTableSelect,
   onConnectTable
 }) => {
+  const [tablesExpanded, setTablesExpanded] = useState(false);
+  
   if (!isOpen || !dashboard) return null;
 
   // Get all tables connected to this dashboard
@@ -145,11 +147,15 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">
+                <div className="flex-1">
+                  <button 
+                    className="flex items-center gap-2 text-base font-semibold hover:text-primary transition-colors"
+                    onClick={() => setTablesExpanded(!tablesExpanded)}
+                  >
+                    {tablesExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     Connected tables ({connectedTables.length})
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
+                  </button>
+                  <p className="text-sm text-muted-foreground mt-1">
                     Tables that feed data to this dashboard
                   </p>
                 </div>
@@ -197,12 +203,14 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
               </div>
             </CardHeader>
             <CardContent className="pt-0">
-              {connectedTables.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic">
-                  No tables connected to this dashboard
-                </p>
-              ) : (
-                <div className="space-y-4">
+              {tablesExpanded && (
+                <>
+                  {connectedTables.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">
+                      No tables connected to this dashboard
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
                   {Object.entries(tablesByDataset).map(([dataset, tables]) => (
                     <div key={dataset} className="space-y-2">
                       <h4 className="text-sm font-medium text-muted-foreground border-b pb-1">
@@ -240,9 +248,11 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
                         ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
             </CardContent>
           </Card>
 
