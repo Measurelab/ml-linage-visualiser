@@ -54,9 +54,9 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
 
   // Function to calculate node size based on connection count
   const getNodeRadius = (node: GraphNode): number => {
-    // Dashboard nodes get a static size
+    // Dashboard nodes get the largest size to make them most prominent
     if (node.nodeType === 'dashboard') {
-      return 15; // Fixed size for dashboards
+      return 25; // Larger than any table node (max table is 20)
     }
     
     // For table nodes, use connection-based sizing
@@ -312,17 +312,24 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       };
       
       if (d.nodeType === 'dashboard') {
-        // Rectangle for dashboards
-        nodeGroup.append('rect')
-          .attr('width', getNodeRadius(d) * 2)
-          .attr('height', getNodeRadius(d) * 1.5)
-          .attr('x', -getNodeRadius(d))
-          .attr('y', -getNodeRadius(d) * 0.75)
-          .attr('rx', 4) // rounded corners
+        const radius = getNodeRadius(d);
+        // Dashboard icon using chart/bar chart symbol
+        nodeGroup.append('circle')
+          .attr('r', radius)
           .attr('fill', getNodeColor(d))
           .attr('stroke', getStroke())
           .attr('stroke-width', getStrokeWidth())
           .attr('opacity', getOpacity());
+          
+        // Add chart bars icon inside the circle
+        const iconScale = radius * 0.06; // Scale bars to node size
+        nodeGroup.append('path')
+          .attr('d', `M${-6 * iconScale},${4 * iconScale} h${3 * iconScale} v${-8 * iconScale} h${-3 * iconScale} z
+                     M${-1 * iconScale},${4 * iconScale} h${3 * iconScale} v${-6 * iconScale} h${-3 * iconScale} z
+                     M${4 * iconScale},${4 * iconScale} h${3 * iconScale} v${-10 * iconScale} h${-3 * iconScale} z`)
+          .attr('fill', 'white')
+          .attr('opacity', 0.9)
+          .attr('pointer-events', 'none');
       } else {
         // Circle for tables
         nodeGroup.append('circle')
@@ -335,21 +342,9 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       
       // Add a subtle glow effect for the focused node
       if (isFocused) {
-        const shape = d.nodeType === 'dashboard' ? 'rect' : 'circle';
-        const glowElement = nodeGroup.insert(shape, ':first-child');
-        
-        if (d.nodeType === 'dashboard') {
-          glowElement
-            .attr('width', getNodeRadius(d) * 2 + 8)
-            .attr('height', getNodeRadius(d) * 1.5 + 8)
-            .attr('x', -getNodeRadius(d) - 4)
-            .attr('y', -getNodeRadius(d) * 0.75 - 4)
-            .attr('rx', 6);
-        } else {
-          glowElement.attr('r', getNodeRadius(d) + 4);
-        }
-        
+        const glowElement = nodeGroup.insert('circle', ':first-child');
         glowElement
+          .attr('r', getNodeRadius(d) + 4)
           .attr('fill', 'none')
           .attr('stroke', getCSSColor('--primary', '#2563eb'))
           .attr('stroke-width', 2)
