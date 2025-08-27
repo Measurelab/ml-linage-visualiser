@@ -163,7 +163,6 @@ export const importParsedData = async (parsedData: ParsedData, portalName?: stri
 export const loadDataFromSupabaseProject = async (projectId: string): Promise<ParsedData> => {
   if (!supabase) throw new Error('Supabase client not initialized');
   
-  console.log(`📥 Loading data from Supabase for project ${projectId}...`);
   
   // Fetch all data for the specific project in parallel
   const [tablesResult, lineagesResult, dashboardsResult, dashboardTablesResult] = await Promise.all([
@@ -221,17 +220,6 @@ export const loadDataFromSupabaseProject = async (projectId: string): Promise<Pa
     tableName: row.table_name || ''
   })) || [];
 
-  console.log('✅ Data loaded from Supabase:', {
-    tables: tables.size,
-    lineages: lineages.length,
-    dashboards: dashboards.size,
-    dashboardTables: dashboardTables.length
-  });
-  
-  // Debug lineages
-  if (lineages.length > 0) {
-    console.log('📊 Lineages loaded:', lineages.map(l => `${l.sourceTableId} → ${l.targetTableId}`));
-  }
 
   return {
     tables,

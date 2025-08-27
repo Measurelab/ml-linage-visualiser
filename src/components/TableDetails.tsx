@@ -95,12 +95,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   }, [table?.id]);
 
   // Add error boundary for this component
-  useEffect(() => {
-    console.log('TableDetails component mounted/updated', { 
-      tableId: table?.id, 
-      supabaseEnabled: isSupabaseEnabled 
-    });
-  }, [table?.id]);
 
   // Initialize edit form when table changes
   useEffect(() => {
@@ -551,7 +545,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                               key={`upstream-${t.id}`}
                               onClick={() => {
                                 try {
-                                  console.log('TableDetails: Connect upstream table:', t.id, 'to', table.id);
                                   onConnectUpstream(t.id, table.id);
                                 } catch (error) {
                                   console.error('Error connecting upstream table:', error);
@@ -678,7 +671,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                               key={`downstream-${t.id}`}
                               onClick={() => {
                                 try {
-                                  console.log('TableDetails: Connect downstream table:', table.id, 'to', t.id);
                                   onConnectDownstream(table.id, t.id);
                                 } catch (error) {
                                   console.error('Error connecting downstream table:', error);
@@ -804,7 +796,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                             key={`dashboard-${d.id}`}
                             onClick={() => {
                               try {
-                                console.log('TableDetails: Connect table', table.id, 'to dashboard:', d.id);
                                 onConnectDashboard(table.id, d.id);
                               } catch (error) {
                                 console.error('Error connecting to dashboard:', error);

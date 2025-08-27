@@ -91,7 +91,7 @@ export interface FilterOptions {
   tableTypes: TableType[];
   showScheduledOnly: boolean;
   searchTerm: string;
-  selectedDashboard?: string;
+  selectedDashboards: string[];
   focusedTableId?: string;
   focusedDashboardId?: string;
 }

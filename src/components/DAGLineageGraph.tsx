@@ -78,16 +78,13 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
       return;
     }
 
-    console.log('Converting and laying out DAG data...');
     
     try {
       // Convert GraphData to DAG format
       const dagData = convertToDAGFormat(data);
-      console.log('Conversion successful, applying layout...');
       
       // Apply dagre layout immediately
       const layoutedData = applyDAGLayout(dagData.nodes, dagData.edges);
-      console.log('Layout completed');
       
       setNodes(layoutedData.nodes);
       setEdges(layoutedData.edges);
@@ -119,24 +116,34 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
   useEffect(() => {
     if (highlightedNodes.size > 0 || focusedNodeId) {
       setNodes((nds) =>
-        nds.map((node) => ({
-          ...node,
-          style: {
-            ...node.style,
-            opacity: highlightedNodes.size > 0 
-              ? (highlightedNodes.has(node.id) ? 1 : 0.3)
-              : 1,
-            filter: focusedNodeId === node.id ? 'drop-shadow(0 0 10px var(--primary))' : 'none',
-          },
-        }))
+        nds.map((node) => {
+          const opacity = highlightedNodes.size > 0 
+            ? (highlightedNodes.has(node.id) ? 1 : 0.3)
+            : (focusedNodeId ? (node.id === focusedNodeId ? 1 : 0.3) : 1);
+          
+          
+          return {
+            ...node,
+            style: {
+              ...node.style,
+              opacity,
+              filter: focusedNodeId === node.id ? 'drop-shadow(0 0 10px var(--primary))' : 'none',
+            },
+          };
+        })
       );
       
-      // Highlight edges that connect highlighted nodes
+      // Highlight edges that connect highlighted nodes or connect to/from focused node
       setEdges((eds) =>
         eds.map((edge) => {
-          const isHighlighted = highlightedNodes.size > 0 && 
+          const isHighlightedConnection = highlightedNodes.size > 0 && 
             highlightedNodes.has(edge.source) && 
             highlightedNodes.has(edge.target);
+          
+          const isFocusedConnection = focusedNodeId && 
+            (edge.source === focusedNodeId || edge.target === focusedNodeId);
+          
+          const isHighlighted = isHighlightedConnection || isFocusedConnection;
           
           return {
             ...edge,

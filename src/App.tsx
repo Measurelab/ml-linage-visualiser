@@ -40,7 +40,7 @@ function AppContent() {
     tableTypes: [],
     showScheduledOnly: false,
     searchTerm: '',
-    selectedDashboard: undefined,
+    selectedDashboards: [],
     focusedTableId: undefined,
     focusedDashboardId: undefined
   });
@@ -289,9 +289,11 @@ function AppContent() {
           // Clear table selection when showing dashboard details
           setSelectedTable(null);
           
-          // Highlight all tables connected to this dashboard
+          // Highlight all tables connected to this dashboard AND the dashboard itself
           const connectedTables = getTablesByDashboard(node.id, parsedData);
-          setHighlightedNodes(connectedTables);
+          const highlightedNodes = new Set(connectedTables);
+          highlightedNodes.add(node.id); // Include the dashboard itself
+          setHighlightedNodes(highlightedNodes);
         }
       }
     } else {
@@ -343,7 +345,7 @@ function AppContent() {
         ...prev,
         focusedDashboardId: prev.focusedDashboardId === node.id ? undefined : node.id,
         focusedTableId: undefined,
-        selectedDashboard: undefined
+        selectedDashboards: []
       }));
     } else {
       // Filter to show only the lineage of this table
@@ -351,7 +353,7 @@ function AppContent() {
         ...prev,
         focusedTableId: prev.focusedTableId === node.id ? undefined : node.id,
         focusedDashboardId: undefined,
-        selectedDashboard: undefined
+        selectedDashboards: []
       }));
     }
   };
@@ -368,7 +370,7 @@ function AppContent() {
         ...prev,
         focusedTableId: tableId,
         focusedDashboardId: undefined,
-        selectedDashboard: undefined
+        selectedDashboards: []
       }));
     }
   };
@@ -1134,7 +1136,7 @@ function AppContent() {
                             tableTypes: [],
                             showScheduledOnly: false,
                             searchTerm: '',
-                            selectedDashboard: undefined,
+                            selectedDashboards: [],
                             focusedTableId: undefined,
                             focusedDashboardId: undefined
                           });

@@ -307,7 +307,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       };
       
       const getOpacity = () => {
-        // When a node is focused, show full opacity for all nodes in the filtered graph
+        // When a node is focused, show full opacity for focused node
         if (focusedNodeId) return isFocused ? 1 : 0.7;
         // Regular highlighting behavior
         if (highlightedNodes.size === 0) return 1;
@@ -533,16 +533,6 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
             const menuX = event.clientX;
             const menuY = event.clientY;
             
-            console.log('Menu positioning:', {
-              clientX: event.clientX,
-              clientY: event.clientY,
-              pageX: event.pageX,
-              pageY: event.pageY,
-              scrollX: window.scrollX,
-              scrollY: window.scrollY,
-              menuX,
-              menuY
-            });
             
             // Show canvas context menu at the correct position
             setCanvasContextMenu({

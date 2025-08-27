@@ -84,24 +84,33 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
   };
 
   const handleDashboardSelect = (dashboardId: string) => {
-    const isCurrentlySelected = filters.selectedDashboard === dashboardId;
+    const currentlySelected = filters.selectedDashboards || [];
+    const isCurrentlySelected = currentlySelected.includes(dashboardId);
     
+    let newSelectedDashboards: string[];
     if (isCurrentlySelected) {
-      // Deselect dashboard
-      onFiltersChange({
-        ...filters,
-        selectedDashboard: undefined
-      });
-      onTableHighlight?.(new Set());
+      // Remove from selection
+      newSelectedDashboards = currentlySelected.filter(id => id !== dashboardId);
     } else {
-      // Select dashboard
-      onFiltersChange({
-        ...filters,
-        selectedDashboard: dashboardId
+      // Add to selection
+      newSelectedDashboards = [...currentlySelected, dashboardId];
+    }
+    
+    onFiltersChange({
+      ...filters,
+      selectedDashboards: newSelectedDashboards
+    });
+    
+    // Highlight connected tables for all selected dashboards
+    if (newSelectedDashboards.length > 0) {
+      const allConnectedTables = new Set<string>();
+      newSelectedDashboards.forEach(id => {
+        const tableIds = getTablesByDashboard(id, parsedData);
+        tableIds.forEach(tableId => allConnectedTables.add(tableId));
       });
-      // Highlight connected tables
-      const tableIds = getTablesByDashboard(dashboardId, parsedData);
-      onTableHighlight?.(tableIds);
+      onTableHighlight?.(allConnectedTables);
+    } else {
+      onTableHighlight?.(new Set());
     }
   };
 
@@ -113,10 +122,11 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
       tableTypes: [],
       showScheduledOnly: false,
       searchTerm: '',
-      selectedDashboard: undefined,
+      selectedDashboards: [],
       focusedTableId: undefined,
       focusedDashboardId: undefined
     });
+    onTableHighlight?.(new Set());
   };
 
   const clearFocus = () => {
@@ -133,7 +143,7 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     filters.tableTypes.length > 0 ||
     filters.showScheduledOnly ||
     filters.searchTerm !== '' ||
-    !!filters.selectedDashboard;
+    (filters.selectedDashboards && filters.selectedDashboards.length > 0);
 
   const getLayerVariant = (layer: LayerType): "default" | "success" | "info" | "warning" | "destructive" => {
     switch (layer) {
@@ -342,19 +352,21 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
 
                 {availableDashboards.length > 0 && (
                   <FilterSection
-                    title="Dashboards"
+                    title={`Dashboards${filters.selectedDashboards && filters.selectedDashboards.length > 0 ? ` (${filters.selectedDashboards.length} selected)` : ''}`}
                     icon={<BarChart3 className="h-4 w-4 text-primary" />}
                   >
                     <ScrollArea className="h-36 rounded-md border border-border/50 p-3 bg-background/50">
                       <div className="space-y-2">
-                        {availableDashboards.map(dashboard => (
-                          <Button
-                            key={dashboard.id}
-                            variant={filters.selectedDashboard === dashboard.id ? "default" : "ghost"}
-                            size="sm"
-                            onClick={() => handleDashboardSelect(dashboard.id)}
-                            className="w-full justify-start h-auto p-3 font-semibold hover:shadow-sm transition-all duration-200"
-                          >
+                        {availableDashboards.map(dashboard => {
+                          const isSelected = filters.selectedDashboards?.includes(dashboard.id) || false;
+                          return (
+                            <Button
+                              key={dashboard.id}
+                              variant={isSelected ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => handleDashboardSelect(dashboard.id)}
+                              className="w-full justify-start h-auto p-3 font-semibold hover:shadow-sm transition-all duration-200"
+                            >
                             <div className="flex flex-col items-start w-full space-y-1">
                               <div className="font-semibold text-sm truncate w-full text-left">
                                 {dashboard.name}
@@ -364,7 +376,8 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
                               </div>
                             </div>
                           </Button>
-                        ))}
+                          );
+                        })}
                       </div>
                     </ScrollArea>
                   </FilterSection>

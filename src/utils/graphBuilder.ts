@@ -23,15 +23,12 @@ export const buildGraphData = (
   const allNodes = new Map([...filteredTableNodes, ...dashboardNodes]);
   
   // Table-to-table connections
-  console.log('🔍 Building graph with lineages:', lineages.length);
-  console.log('🔍 Available table IDs:', Array.from(tableIds));
   
   const tableLinks = lineages
     .filter(lineage => {
       const hasSource = tableIds.has(lineage.sourceTableId);
       const hasTarget = tableIds.has(lineage.targetTableId);
       if (!hasSource || !hasTarget) {
-        console.log(`⚠️ Filtering out lineage ${lineage.sourceTableId} → ${lineage.targetTableId} (source: ${hasSource}, target: ${hasTarget})`);
       }
       return hasSource && hasTarget;
     })
@@ -40,7 +37,6 @@ export const buildGraphData = (
       target: lineage.targetTableId
     }));
   
-  console.log('🔗 Created table links:', tableLinks.length, tableLinks);
 
   // Table-to-dashboard connections
   const dashboardLinks = dashboardTables
@@ -180,10 +176,14 @@ const filterNodes = (
         );
       }
       
-      // Filter by selected dashboard - show only tables connected to this dashboard
-      if (filters.selectedDashboard) {
-        const tablesInDashboard = getTablesByDashboard(filters.selectedDashboard, parsedData);
-        include = include && tablesInDashboard.has(table.id);
+      // Filter by selected dashboards - show only tables connected to these dashboards
+      if (filters.selectedDashboards && filters.selectedDashboards.length > 0) {
+        const tablesConnectedToSelectedDashboards = new Set<string>();
+        filters.selectedDashboards.forEach(dashboardId => {
+          const tablesInDashboard = getTablesByDashboard(dashboardId, parsedData);
+          tablesInDashboard.forEach(tableId => tablesConnectedToSelectedDashboards.add(tableId));
+        });
+        include = include && tablesConnectedToSelectedDashboards.has(table.id);
       }
     }
     
@@ -281,9 +281,9 @@ const getDashboardNodes = (
         );
       }
       
-      // If filtering by selected dashboard, only show that dashboard
-      if (filters.selectedDashboard) {
-        include = include && dashboard.id === filters.selectedDashboard;
+      // If filtering by selected dashboards, only show those dashboards
+      if (filters.selectedDashboards && filters.selectedDashboards.length > 0) {
+        include = include && filters.selectedDashboards.includes(dashboard.id);
       }
     }
     

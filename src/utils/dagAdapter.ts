@@ -36,10 +36,6 @@ export interface DAGData {
  * Convert GraphData (D3 format) to React Flow format for DAG visualization
  */
 export const convertToDAGFormat = (graphData: GraphData): DAGData => {
-  console.log('Converting to DAG format:', { 
-    nodeCount: graphData.nodes.length, 
-    edgeCount: graphData.links.length 
-  });
 
   // Convert nodes
   const dagNodes: DAGNode[] = graphData.nodes.map((node, index) => {
@@ -183,12 +179,6 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
     ranker: 'network-simplex', // Use network-simplex for better results
   });
   
-  console.log('Dagre configuration:', {
-    avgNodeWidth: Math.round(avgNodeWidth),
-    avgNodeHeight: Math.round(avgNodeHeight),
-    ranksep: Math.max(avgNodeWidth * 3, 200),
-    nodesep: Math.max(avgNodeHeight * 0.8, 40),
-  });
   g.setDefaultEdgeLabel(() => ({}));
 
   // Validate nodes have required dimensions (prefer measured, fallback to declared)
@@ -205,7 +195,6 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
     return hasId && hasWidth && hasHeight;
   });
 
-  console.log('Valid nodes for layout:', validNodes.length, 'of', nodes.length);
 
   // Add nodes to dagre graph with measured dimensions and layer-based ranking
   validNodes.forEach((node) => {
@@ -223,7 +212,6 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
       rank = 10; // Ensure dashboards are always on the far right
     }
     
-    console.log(`Node ${node.id}: layer=${node.data.layer}, rank=${rank}, dimensions=${width}x${height}`);
     
     g.setNode(node.id, { 
       width,
@@ -280,11 +268,6 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
     };
   });
 
-  console.log('DAG Layout applied:', {
-    nodeCount: layoutNodes.length,
-    edgeCount: validEdges.length,
-    samplePositions: layoutNodes.slice(0, 3).map(n => ({ id: n.id, pos: n.position }))
-  });
 
   return {
     nodes: layoutNodes,
@@ -296,7 +279,6 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
  * Fallback layout when dagre fails
  */
 const applyFallbackLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAGNode[]; edges: DAGEdge[] } => {
-  console.log('Applying fallback grid layout');
   
   // Group nodes by layer for better organization
   const nodesByLayer: { [key: string]: DAGNode[] } = {};
@@ -345,13 +327,6 @@ const applyFallbackLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAGNo
     };
   });
 
-  console.log('Fallback layout applied with left-to-right spacing:', {
-    horizontalSpacing,
-    verticalSpacing,
-    maxNodeWidth,
-    maxNodeHeight,
-    layerOrder: layers
-  });
 
   return { nodes: layoutNodes, edges };
 };
