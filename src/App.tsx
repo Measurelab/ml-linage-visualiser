@@ -13,7 +13,7 @@ import CreateDashboardDialog, { DashboardFormData } from './components/CreateDas
 import DashboardDetails from './components/DashboardDetails';
 import { PortalProvider, usePortal } from './contexts/PortalContext';
 import { loadAndParseData } from './utils/dataParser';
-import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable, deleteDashboard } from './services/lineageData';
+import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable, deleteDashboard, deleteLineage, deleteDashboardTable } from './services/lineageData';
 import { getAllProjects, createProject } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
 import { buildGraphData, getUpstreamTables, getDownstreamTables, getTablesByDashboard } from './utils/graphBuilder';
@@ -678,6 +678,40 @@ function AppContent() {
     setCreateDashboardDialogOpen(true);
   };
 
+  // Handle disconnecting lineage
+  const handleDisconnectUpstream = async (sourceTableId: string, targetTableId: string) => {
+    if (!activeProject) return;
+    
+    try {
+      await deleteLineage(sourceTableId, targetTableId, activeProject.id);
+      await handleTableUpdate();
+    } catch (error) {
+      console.error('Error deleting upstream lineage:', error);
+    }
+  };
+
+  const handleDisconnectDownstream = async (sourceTableId: string, targetTableId: string) => {
+    if (!activeProject) return;
+    
+    try {
+      await deleteLineage(sourceTableId, targetTableId, activeProject.id);
+      await handleTableUpdate();
+    } catch (error) {
+      console.error('Error deleting downstream lineage:', error);
+    }
+  };
+
+  const handleDisconnectDashboard = async (tableId: string, dashboardId: string) => {
+    if (!activeProject) return;
+    
+    try {
+      await deleteDashboardTable(tableId, dashboardId, activeProject.id);
+      await handleTableUpdate();
+    } catch (error) {
+      console.error('Error deleting dashboard-table connection:', error);
+    }
+  };
+
   const handleCreateDashboard = async (dashboardData: DashboardFormData) => {
     if (!activeProject) return;
     
@@ -1128,6 +1162,9 @@ function AppContent() {
           onConnectUpstream={isSupabaseEnabled && activeProject ? handleConnectUpstreamTable : undefined}
           onConnectDownstream={isSupabaseEnabled && activeProject ? handleConnectDownstreamTable : undefined}
           onConnectDashboard={isSupabaseEnabled && activeProject ? handleConnectTableToDashboard : undefined}
+          onDisconnectUpstream={isSupabaseEnabled && activeProject ? handleDisconnectUpstream : undefined}
+          onDisconnectDownstream={isSupabaseEnabled && activeProject ? handleDisconnectDownstream : undefined}
+          onDisconnectDashboard={isSupabaseEnabled && activeProject ? handleDisconnectDashboard : undefined}
           onTableUpdate={handleTableUpdate}
           activeProjectId={activeProject?.id}
         />
@@ -1139,6 +1176,7 @@ function AppContent() {
           onClose={() => setSelectedDashboardDetails(null)}
           onTableSelect={handleTableSelect}
           onConnectTable={isSupabaseEnabled && activeProject ? handleConnectTableToDashboard : undefined}
+          onDisconnectTable={isSupabaseEnabled && activeProject ? handleDisconnectDashboard : undefined}
         />
         
         {/* Delete confirmation dialog */}

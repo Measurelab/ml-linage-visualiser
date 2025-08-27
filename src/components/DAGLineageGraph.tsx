@@ -115,7 +115,7 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
     }
   }, [data, setNodes, setEdges]);
 
-  // Apply highlighting to nodes
+  // Apply highlighting to nodes and edges
   useEffect(() => {
     if (highlightedNodes.size > 0 || focusedNodeId) {
       setNodes((nds) =>
@@ -130,6 +130,25 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
           },
         }))
       );
+      
+      // Highlight edges that connect highlighted nodes
+      setEdges((eds) =>
+        eds.map((edge) => {
+          const isHighlighted = highlightedNodes.size > 0 && 
+            highlightedNodes.has(edge.source) && 
+            highlightedNodes.has(edge.target);
+          
+          return {
+            ...edge,
+            style: {
+              ...edge.style,
+              strokeOpacity: isHighlighted ? 0.8 : 0.15,
+              strokeWidth: isHighlighted ? 2 : 1,
+              stroke: isHighlighted ? 'var(--primary)' : '#6b7280',
+            },
+          };
+        })
+      );
     } else {
       // Reset all nodes to full opacity
       setNodes((nds) =>
@@ -142,8 +161,21 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
           },
         }))
       );
+      
+      // Reset all edges to default styling
+      setEdges((eds) =>
+        eds.map((edge) => ({
+          ...edge,
+          style: {
+            ...edge.style,
+            strokeOpacity: 0.4,
+            strokeWidth: 1.5,
+            stroke: '#6b7280',
+          },
+        }))
+      );
     }
-  }, [highlightedNodes, focusedNodeId, setNodes]);
+  }, [highlightedNodes, focusedNodeId, setNodes, setEdges]);
 
   // Handle node clicks - single click for selection or dashboard filtering
   const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {

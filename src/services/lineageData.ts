@@ -535,3 +535,22 @@ export const createDashboardTable = async (dashboardTable: DashboardTable, proje
   
   console.log(`✅ Created dashboard-table mapping from ${dashboardTable.dashboardId} to ${dashboardTable.tableId}`);
 };
+
+// Delete a dashboard-table connection
+export const deleteDashboardTable = async (tableId: string, dashboardId: string, projectId: string): Promise<void> => {
+  if (!supabase) throw new Error('Supabase client not initialized');
+  
+  const { error } = await supabase
+    .from('dashboard_tables')
+    .delete()
+    .eq('table_id', tableId)
+    .eq('dashboard_id', dashboardId)
+    .eq('project_id', projectId);
+  
+  if (error) {
+    console.error('Error deleting dashboard-table mapping:', error);
+    throw error;
+  }
+  
+  console.log(`✅ Deleted dashboard-table mapping from ${dashboardId} to ${tableId}`);
+};

@@ -4,7 +4,7 @@ import { getUpstreamTables, getDownstreamTables, getUpstreamTablesWithDistance, 
 import { getTableColumns, createColumn, deleteColumn, createBulkColumns, areColumnsAvailable } from '@/services/columns';
 import { updateTable } from '@/services/lineageData';
 import { isSupabaseEnabled } from '@/services/supabase';
-import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import ColumnList from './ColumnList';
 import AddColumnModal from './AddColumnModal';
 import UploadSchemaModal from './UploadSchemaModal';
@@ -39,6 +39,9 @@ interface TableDetailsProps {
   onConnectUpstream?: (sourceTableId: string, targetTableId: string) => void;
   onConnectDownstream?: (sourceTableId: string, targetTableId: string) => void;
   onConnectDashboard?: (tableId: string, dashboardId: string) => void;
+  onDisconnectUpstream?: (sourceTableId: string, targetTableId: string) => void;
+  onDisconnectDownstream?: (sourceTableId: string, targetTableId: string) => void;
+  onDisconnectDashboard?: (tableId: string, dashboardId: string) => void;
   onTableUpdate?: () => void;
   activeProjectId?: string;
 }
@@ -52,6 +55,9 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   onConnectUpstream,
   onConnectDownstream,
   onConnectDashboard,
+  onDisconnectUpstream,
+  onDisconnectDownstream,
+  onDisconnectDashboard,
   onTableUpdate,
   activeProjectId
 }) => {
@@ -115,9 +121,18 @@ const TableDetails: React.FC<TableDetailsProps> = ({
 
   // Helper function to get table by ID - defined first to avoid reference errors
   const getTableById = (id: string) => parsedData.tables.get(id);
+  const getDashboardById = (id: string) => parsedData.dashboards.get(id);
 
   const upstreamTables = getUpstreamTables(table.id, parsedData);
   const downstreamTables = getDownstreamTables(table.id, parsedData);
+  
+  // Get connected dashboards for this table
+  const connectedDashboards = new Set<string>();
+  parsedData.dashboardTables.forEach(dt => {
+    if (dt.tableId === table.id) {
+      connectedDashboards.add(dt.dashboardId);
+    }
+  });
   
   // Get tables with distances for grouping
   const upstreamTablesWithDistance = getUpstreamTablesWithDistance(table.id, parsedData);
@@ -577,16 +592,18 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                             return (
                               <Card
                                 key={id}
-                                className={`cursor-pointer hover:shadow-sm transition-all ${
+                                className={`hover:shadow-sm transition-all ${
                                   distance === 1 ? 'border-green-200' : 
                                   distance === 2 ? 'border-yellow-200' : 
                                   'border-orange-200'
                                 }`}
-                                onClick={() => onTableSelect(id)}
                               >
                                 <CardContent className="p-2">
                                   <div className="flex items-center justify-between">
-                                    <div className="min-w-0 flex-1">
+                                    <div 
+                                      className="min-w-0 flex-1 cursor-pointer"
+                                      onClick={() => onTableSelect(id)}
+                                    >
                                       <p className="text-sm font-medium truncate">{upTable.name}</p>
                                       <p className="text-xs text-muted-foreground truncate">{upTable.dataset}</p>
                                     </div>
@@ -600,6 +617,20 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                                       <Badge variant={getLayerVariant(upTable.layer)} className="ml-0">
                                         {upTable.layer}
                                       </Badge>
+                                      {onDisconnectUpstream && distance === 1 && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDisconnectUpstream(id, table.id);
+                                          }}
+                                          title="Remove upstream connection"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 </CardContent>
@@ -688,16 +719,18 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                             return (
                               <Card
                                 key={id}
-                                className={`cursor-pointer hover:shadow-sm transition-all ${
+                                className={`hover:shadow-sm transition-all ${
                                   distance === 1 ? 'border-green-200' : 
                                   distance === 2 ? 'border-yellow-200' : 
                                   'border-orange-200'
                                 }`}
-                                onClick={() => onTableSelect(id)}
                               >
                                 <CardContent className="p-2">
                                   <div className="flex items-center justify-between">
-                                    <div className="min-w-0 flex-1">
+                                    <div 
+                                      className="min-w-0 flex-1 cursor-pointer"
+                                      onClick={() => onTableSelect(id)}
+                                    >
                                       <p className="text-sm font-medium truncate">{downTable.name}</p>
                                       <p className="text-xs text-muted-foreground truncate">{downTable.dataset}</p>
                                     </div>
@@ -711,6 +744,20 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                                       <Badge variant={getLayerVariant(downTable.layer)} className="ml-0">
                                         {downTable.layer}
                                       </Badge>
+                                      {onDisconnectDownstream && distance === 1 && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDisconnectDownstream(table.id, id);
+                                          }}
+                                          title="Remove downstream connection"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 </CardContent>
@@ -781,10 +828,49 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                 </div>
                 {dashboardsExpanded && (
                   <div className="space-y-2">
-                    {/* TODO: Show connected dashboards once we have a utility to get them */}
-                    <p className="text-sm text-muted-foreground italic">
-                      Use the dropdown above to connect this table to a dashboard
-                    </p>
+                    {connectedDashboards.size > 0 ? (
+                      Array.from(connectedDashboards).map(dashboardId => {
+                        const dashboard = getDashboardById(dashboardId);
+                        if (!dashboard) return null;
+                        return (
+                          <Card key={dashboardId} className="hover:shadow-sm transition-all">
+                            <CardContent className="p-2">
+                              <div className="flex items-center justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium truncate">{dashboard.name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {dashboard.businessArea || 'No business area'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="text-xs">
+                                    Dashboard
+                                  </Badge>
+                                  {onDisconnectDashboard && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDisconnectDashboard(table.id, dashboardId);
+                                      }}
+                                      title="Remove dashboard connection"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No connected dashboards
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

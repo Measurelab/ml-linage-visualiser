@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ExternalLink, Users, Building, Eye, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, ExternalLink, Users, Building, Eye, Plus, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ interface DashboardDetailsProps {
   onClose: () => void;
   onTableSelect: (tableId: string) => void;
   onConnectTable?: (tableId: string, dashboardId: string) => void;
+  onDisconnectTable?: (tableId: string, dashboardId: string) => void;
 }
 
 const DashboardDetails: React.FC<DashboardDetailsProps> = ({
@@ -27,7 +28,8 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
   isOpen,
   onClose,
   onTableSelect,
-  onConnectTable
+  onConnectTable,
+  onDisconnectTable
 }) => {
   const [tablesExpanded, setTablesExpanded] = useState(false);
   
@@ -220,10 +222,12 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
                         {tables.map((table) => (
                           <div
                             key={table.id}
-                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                            onClick={() => onTableSelect(table.id)}
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                           >
-                            <div className="flex-1 min-w-0">
+                            <div 
+                              className="flex-1 min-w-0 cursor-pointer"
+                              onClick={() => onTableSelect(table.id)}
+                            >
                               <div className="flex items-center gap-2 mb-1">
                                 <p className="font-medium text-sm truncate">
                                   {table.name}
@@ -241,9 +245,25 @@ const DashboardDetails: React.FC<DashboardDetailsProps> = ({
                                 )}
                               </div>
                             </div>
-                            <Button variant="ghost" size="sm" className="flex-shrink-0">
-                              <ExternalLink className="h-3 w-3" />
-                            </Button>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Button variant="ghost" size="sm">
+                                <ExternalLink className="h-3 w-3" />
+                              </Button>
+                              {onDisconnectTable && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:bg-destructive/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDisconnectTable(table.id, dashboard.id);
+                                  }}
+                                  title="Remove table from dashboard"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

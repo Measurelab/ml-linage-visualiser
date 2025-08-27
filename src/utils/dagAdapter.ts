@@ -84,7 +84,7 @@ export const convertToDAGFormat = (graphData: GraphData): DAGData => {
       id: `edge-${sourceId}-${targetId}`,
       source: sourceId,
       target: targetId,
-      type: 'simplebezier',
+      type: 'default',
       animated: false,
       markerEnd: {
         type: MarkerType.ArrowClosed,
@@ -94,7 +94,8 @@ export const convertToDAGFormat = (graphData: GraphData): DAGData => {
       },
       style: {
         stroke: '#6b7280',
-        strokeWidth: 2,
+        strokeWidth: 1.5,
+        strokeOpacity: 0.4,
       },
       data: {
         originalLink: link,
@@ -170,14 +171,14 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
     return sum + height;
   }, 0) / nodes.length;
 
-  // Configure dagre graph with spacing optimized for wide, less vertical layout
+  // Configure dagre graph with spacing optimized for reducing congestion
   g.setGraph({ 
     rankdir: 'LR', // Left to right for layer-based grouping
-    ranksep: Math.max(avgNodeWidth * 4, 300), // Much wider horizontal spacing between layers
-    nodesep: Math.max(avgNodeHeight * 2, 100),  // Much more vertical spacing to reduce overlap
-    edgesep: 50,   // More space between parallel edges
-    marginx: Math.max(avgNodeWidth * 1.5, 100),  // Increased horizontal margins
-    marginy: Math.max(avgNodeHeight * 0.5, 30), // Reduced vertical margins
+    ranksep: Math.max(avgNodeWidth * 4.5, 350), // Even wider horizontal spacing between layers
+    nodesep: Math.max(avgNodeHeight * 3, 150),  // Much more vertical spacing to spread nodes
+    edgesep: 80,   // Significant space between parallel edges
+    marginx: Math.max(avgNodeWidth * 2, 120),  // Larger horizontal margins
+    marginy: Math.max(avgNodeHeight * 1, 50), // More vertical margins
     acyclicer: 'greedy', // Handle cycles better
     ranker: 'network-simplex', // Use network-simplex for better results
   });
