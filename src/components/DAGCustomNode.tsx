@@ -18,7 +18,7 @@ export const TableNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected 
   
   return (
     <div className="relative">
-      <Handle type="target" position={Position.Top} className="opacity-0" />
+      <Handle type="target" position={Position.Left} className="opacity-0" />
       
       <div
         className={`
@@ -64,7 +64,7 @@ export const TableNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selected 
         )}
       </div>
       
-      <Handle type="source" position={Position.Bottom} className="opacity-0" />
+      <Handle type="source" position={Position.Right} className="opacity-0" />
     </div>
   );
 };
@@ -74,7 +74,7 @@ export const DashboardNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selec
   
   return (
     <div className="relative">
-      <Handle type="target" position={Position.Top} className="opacity-0" />
+      <Handle type="target" position={Position.Left} className="opacity-0" />
       
       <div
         className={`
@@ -105,7 +105,7 @@ export const DashboardNode: React.FC<NodeProps<CustomNodeData>> = ({ data, selec
         </div>
       </div>
       
-      <Handle type="source" position={Position.Bottom} className="opacity-0" />
+      <Handle type="source" position={Position.Right} className="opacity-0" />
     </div>
   );
 };
