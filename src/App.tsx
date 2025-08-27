@@ -1040,8 +1040,8 @@ function AppContent() {
 
           <div className="flex-1 relative bg-muted/5">
             
-            {/* Layout Mode Selector */}
-            <div className="absolute top-4 left-4 z-20">
+            {/* Layout Mode Selector and Data Count */}
+            <div className="absolute top-4 left-4 z-20 flex gap-3 items-center">
               <div className="flex gap-1 bg-card border rounded-lg p-1 shadow-sm">
                 <Button
                   variant={layoutMode === 'force' ? 'default' : 'ghost'}
@@ -1060,6 +1060,36 @@ function AppContent() {
                   DAG Layout
                 </Button>
               </div>
+              
+              {/* Data Count Display */}
+              {(() => {
+                if (!graphData) return null;
+                
+                const hasActiveFilters = 
+                  filters.datasets.length > 0 ||
+                  filters.layers.length > 0 ||
+                  filters.tableTypes.length > 0 ||
+                  filters.showScheduledOnly ||
+                  filters.searchTerm !== '' ||
+                  (filters.selectedDashboards && filters.selectedDashboards.length > 0) ||
+                  filters.focusedTableId ||
+                  filters.focusedDashboardId;
+                
+                const tableCount = graphData.nodes.filter(n => n.nodeType === 'table').length;
+                const dashboardCount = graphData.nodes.filter(n => n.nodeType === 'dashboard').length;
+                const connectionCount = graphData.links.length;
+                
+                return (
+                  <div className="bg-card border rounded-lg px-3 py-2 shadow-sm">
+                    <div className="text-xs text-muted-foreground font-semibold">
+                      {hasActiveFilters ? 'Filtered view: ' : 'Total: '}
+                      <span className="text-foreground">{tableCount} tables</span>
+                      {dashboardCount > 0 && <>, <span className="text-foreground">{dashboardCount} dashboards</span></>}
+                      , <span className="text-foreground">{connectionCount} connections</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             
             {/* Loading overlay when switching projects */}
