@@ -3,7 +3,6 @@ import { Table, ParsedData, Column, CreateColumnRequest } from '@/types';
 import { getUpstreamTables, getDownstreamTables, getUpstreamTablesWithDistance, getDownstreamTablesWithDistance } from '@/utils/graphBuilder';
 import { getTableColumns, createColumn, deleteColumn, createBulkColumns, areColumnsAvailable } from '@/services/columns';
 import { updateTable } from '@/services/lineageData';
-import { isSupabaseEnabled } from '@/services/supabase';
 import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import ColumnList from './ColumnList';
 import AddColumnModal from './AddColumnModal';

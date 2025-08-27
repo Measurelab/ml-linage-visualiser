@@ -1,5 +1,5 @@
 import { Node, Edge, MarkerType } from 'reactflow';
-import { GraphData, GraphNode, GraphLink } from '../types';
+import { GraphData, GraphNode } from '../types';
 import { getNodeColor } from './graphBuilder';
 import * as dagre from 'dagre';
 
@@ -21,11 +21,7 @@ export interface DAGNode extends Node {
   };
 }
 
-export interface DAGEdge extends Edge {
-  data?: {
-    originalLink: GraphLink;
-  };
-}
+export type DAGEdge = Edge
 
 export interface DAGData {
   nodes: DAGNode[];
@@ -38,7 +34,7 @@ export interface DAGData {
 export const convertToDAGFormat = (graphData: GraphData): DAGData => {
 
   // Convert nodes
-  const dagNodes: DAGNode[] = graphData.nodes.map((node, index) => {
+  const dagNodes: DAGNode[] = graphData.nodes.map((node) => {
     const nodeData = node as any; // Cast to access layer, dataset, etc.
     const width = getNodeWidth(node);
     const height = getNodeHeight(node);
@@ -72,7 +68,7 @@ export const convertToDAGFormat = (graphData: GraphData): DAGData => {
   });
 
   // Convert edges/links
-  const dagEdges: DAGEdge[] = graphData.links.map((link, index) => {
+  const dagEdges: DAGEdge[] = graphData.links.map((link) => {
     const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
     const targetId = typeof link.target === 'string' ? link.target : link.target.id;
 
@@ -189,8 +185,8 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
     const declaredWidth = node.width;
     const declaredHeight = node.height;
     
-    const hasWidth = measuredWidth > 0 || declaredWidth > 0;
-    const hasHeight = measuredHeight > 0 || declaredHeight > 0;
+    const hasWidth = measuredWidth > 0 || (declaredWidth !== undefined && declaredWidth > 0);
+    const hasHeight = measuredHeight > 0 || (declaredHeight !== undefined && declaredHeight > 0);
     
     return hasId && hasWidth && hasHeight;
   });

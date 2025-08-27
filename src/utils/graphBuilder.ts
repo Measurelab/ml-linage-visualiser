@@ -28,8 +28,7 @@ export const buildGraphData = (
     .filter(lineage => {
       const hasSource = tableIds.has(lineage.sourceTableId);
       const hasTarget = tableIds.has(lineage.targetTableId);
-      if (!hasSource || !hasTarget) {
-      }
+      // Skip invalid connections where source or target is not in filtered tables
       return hasSource && hasTarget;
     })
     .map(lineage => ({

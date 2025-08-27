@@ -5,17 +5,14 @@ import ReactFlow, {
   MiniMap,
   useNodesState,
   useEdgesState,
-  OnNodesChange,
-  OnEdgesChange,
   OnConnect,
   ConnectionMode,
   Node,
-  Edge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 import { GraphData, GraphNode } from '../types';
-import { convertToDAGFormat, applyDAGLayout, DAGNode, DAGEdge } from '../utils/dagAdapter';
+import { convertToDAGFormat, applyDAGLayout, DAGNode } from '../utils/dagAdapter';
 import { TableNode, DashboardNode } from './DAGCustomNode';
 import { Database, BarChart3 } from 'lucide-react';
 
@@ -50,8 +47,8 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
   width = window.innerWidth,
   height = window.innerHeight - 200,
 }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState<DAGNode>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<DAGEdge>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [nodeContextMenu, setNodeContextMenu] = useState<{
     x: number;
     y: number;
@@ -185,7 +182,7 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
   }, [highlightedNodes, focusedNodeId, setNodes, setEdges]);
 
   // Handle node clicks - single click for selection or dashboard filtering
-  const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     const dagNode = node as DAGNode;
     const originalNode = dagNode.data.originalNode;
     
@@ -200,7 +197,7 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
   }, [onNodeClick]);
 
   // Handle node double clicks - same as single click for now
-  const handleNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
+  const handleNodeDoubleClick = useCallback((_event: React.MouseEvent, node: Node) => {
     if (onNodeClick) {
       const dagNode = node as DAGNode;
       onNodeClick(dagNode.data.originalNode);
@@ -282,7 +279,6 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
         <Background 
           color="var(--muted-foreground)" 
           gap={20}
-          variant="dots" 
         />
         <Controls 
           showInteractive={false}
