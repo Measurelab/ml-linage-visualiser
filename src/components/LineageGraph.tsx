@@ -16,6 +16,7 @@ const getCSSColor = (variableName: string, fallback: string = '#999'): string =>
 interface LineageGraphProps {
   data: GraphData;
   onNodeClick?: (node: GraphNode) => void;
+  onFilterToLineage?: (node: GraphNode) => void;
   onNodeDelete?: (node: GraphNode) => void;
   onNodeAddUpstream?: (node: GraphNode) => void;
   onNodeAddDownstream?: (node: GraphNode) => void;
@@ -31,6 +32,7 @@ interface LineageGraphProps {
 const LineageGraph: React.FC<LineageGraphProps> = ({
   data,
   onNodeClick,
+  onFilterToLineage,
   onNodeDelete,
   onNodeAddUpstream,
   onNodeAddDownstream,
@@ -696,6 +698,17 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
           >
             View details
           </button>
+          {onFilterToLineage && (
+            <button
+              className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+              onClick={() => {
+                onFilterToLineage(contextMenu.node);
+                setContextMenu(null);
+              }}
+            >
+              Filter to lineage
+            </button>
+          )}
           {onNodeDelete && (
             <>
               <div className="border-t my-1" />

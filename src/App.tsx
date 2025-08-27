@@ -16,7 +16,7 @@ import { loadAndParseData } from './utils/dataParser';
 import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable, deleteDashboard } from './services/lineageData';
 import { getAllProjects, createProject } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
-import { buildGraphData } from './utils/graphBuilder';
+import { buildGraphData, getUpstreamTables, getDownstreamTables, getTablesByDashboard } from './utils/graphBuilder';
 import { ParsedData, FilterOptions, Table, GraphNode, Project, TableLineage, Dashboard, DashboardTable } from './types';
 import { Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -271,38 +271,62 @@ function AppContent() {
   }, [parsedData, filters]);
 
   const handleNodeClick = (node: GraphNode) => {
+    if (!parsedData) return;
+    
     if (node.nodeType === 'dashboard') {
-      // Dashboard clicked - show dashboard details panel and focus on its connections
-      const dashboard = parsedData?.dashboards.get(node.id);
+      // Dashboard clicked - show dashboard details panel and highlight its connections
+      const dashboard = parsedData.dashboards.get(node.id);
       if (dashboard) {
         setSelectedDashboardDetails(dashboard);
         // Clear table selection when showing dashboard details
         setSelectedTable(null);
         
-        // Toggle focus: if clicking the same dashboard, unfocus; otherwise focus on the new dashboard
-        setFilters(prev => ({
-          ...prev,
-          focusedDashboardId: prev.focusedDashboardId === node.id ? undefined : node.id,
-          focusedTableId: undefined, // Clear table focus when focusing on a dashboard
-          selectedDashboard: undefined
-        }));
+        // Highlight all tables connected to this dashboard
+        const connectedTables = getTablesByDashboard(node.id, parsedData);
+        setHighlightedNodes(connectedTables);
       }
     } else {
-      // Table clicked - show table details and focus on its lineage
-      const table = parsedData?.tables.get(node.id);
+      // Table clicked - show table details and highlight its lineage
+      const table = parsedData.tables.get(node.id);
       if (table) {
         setSelectedTable(table);
         // Clear dashboard details when showing table details
         setSelectedDashboardDetails(null);
         
-        // Toggle focus: if clicking the same node, unfocus; otherwise focus on the new node
-        setFilters(prev => ({
-          ...prev,
-          focusedTableId: prev.focusedTableId === node.id ? undefined : node.id,
-          focusedDashboardId: undefined, // Clear dashboard focus when focusing on a table
-          selectedDashboard: undefined
-        }));
+        // Calculate and highlight lineage
+        const lineageNodes = new Set<string>();
+        lineageNodes.add(node.id); // Include the clicked node
+        
+        // Add upstream tables
+        const upstreamTables = getUpstreamTables(node.id, parsedData);
+        upstreamTables.forEach(id => lineageNodes.add(id));
+        
+        // Add downstream tables
+        const downstreamTables = getDownstreamTables(node.id, parsedData);
+        downstreamTables.forEach(id => lineageNodes.add(id));
+        
+        setHighlightedNodes(lineageNodes);
       }
+    }
+  };
+
+  const handleFilterToLineage = (node: GraphNode) => {
+    if (node.nodeType === 'dashboard') {
+      // Filter to show only tables connected to this dashboard
+      setFilters(prev => ({
+        ...prev,
+        focusedDashboardId: prev.focusedDashboardId === node.id ? undefined : node.id,
+        focusedTableId: undefined,
+        selectedDashboard: undefined
+      }));
+    } else {
+      // Filter to show only the lineage of this table
+      setFilters(prev => ({
+        ...prev,
+        focusedTableId: prev.focusedTableId === node.id ? undefined : node.id,
+        focusedDashboardId: undefined,
+        selectedDashboard: undefined
+      }));
     }
   };
 
@@ -991,6 +1015,7 @@ function AppContent() {
               <LineageGraph
                 data={graphData}
                 onNodeClick={handleNodeClick}
+                onFilterToLineage={handleFilterToLineage}
                 onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
                 onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
                 onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
@@ -1004,6 +1029,7 @@ function AppContent() {
               <DAGLineageGraph
                 data={graphData}
                 onNodeClick={handleNodeClick}
+                onFilterToLineage={handleFilterToLineage}
                 onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
                 onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
                 onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}

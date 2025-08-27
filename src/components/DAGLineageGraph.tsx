@@ -22,6 +22,7 @@ import { Database, BarChart3 } from 'lucide-react';
 interface DAGLineageGraphProps {
   data: GraphData;
   onNodeClick?: (node: GraphNode) => void;
+  onFilterToLineage?: (node: GraphNode) => void;
   onNodeDelete?: (node: GraphNode) => void;
   onNodeAddUpstream?: (node: GraphNode) => void;
   onNodeAddDownstream?: (node: GraphNode) => void;
@@ -37,6 +38,7 @@ interface DAGLineageGraphProps {
 const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
   data,
   onNodeClick,
+  onFilterToLineage,
   onNodeDelete,
   onNodeAddUpstream,
   onNodeAddDownstream,
@@ -50,6 +52,11 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<DAGNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<DAGEdge>([]);
+  const [nodeContextMenu, setNodeContextMenu] = useState<{
+    x: number;
+    y: number;
+    node: GraphNode;
+  } | null>(null);
   const [canvasContextMenu, setCanvasContextMenu] = useState<{
     x: number;
     y: number;
@@ -167,44 +174,12 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
     const dagNode = node as DAGNode;
     const originalNode = dagNode.data.originalNode;
     
-    // Create context menu actions
-    const menuItems = [];
-    
-    if (onNodeDelete) {
-      menuItems.push({
-        label: 'Delete table',
-        action: () => onNodeDelete(originalNode),
-        className: 'text-destructive'
-      });
-    }
-    
-    if (onNodeAddUpstream) {
-      menuItems.push({
-        label: 'Add upstream table',
-        action: () => onNodeAddUpstream(originalNode)
-      });
-    }
-    
-    if (onNodeAddDownstream) {
-      menuItems.push({
-        label: 'Add downstream table', 
-        action: () => onNodeAddDownstream(originalNode)
-      });
-    }
-    
-    if (onDashboardAdd && originalNode.nodeType !== 'dashboard') {
-      menuItems.push({
-        label: 'Add to dashboard',
-        action: () => onDashboardAdd(originalNode)
-      });
-    }
-    
-    // For now, just log the available actions
-    console.log('Context menu for node:', originalNode.id, 'Available actions:', menuItems.map(item => item.label));
-    
-    // TODO: Implement actual context menu UI
-    // This could be done with a portal/overlay or by updating state to show a menu
-  }, [onNodeDelete, onNodeAddUpstream, onNodeAddDownstream, onDashboardAdd]);
+    setNodeContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      node: originalNode
+    });
+  }, []);
 
   // Disable connections (this is a read-only visualization)
   const onConnect: OnConnect = useCallback(() => {
@@ -230,8 +205,9 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
     }
   }, [onCanvasCreateTable, onCanvasCreateDashboard]);
 
-  // Handle pane click to close context menu
+  // Handle pane click to close context menus
   const handlePaneClick = useCallback(() => {
+    setNodeContextMenu(null);
     setCanvasContextMenu(null);
   }, []);
 
@@ -297,6 +273,84 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
           <LayerIndicator color="var(--chart-5)" label="Dashboards" />
         </div>
       </div>
+
+      {/* Node context menu */}
+      {nodeContextMenu && (
+        <div
+          className="fixed bg-card border rounded-md shadow-lg py-1 z-50"
+          style={{ left: nodeContextMenu.x, top: nodeContextMenu.y }}
+        >
+          <button
+            className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+            onClick={() => {
+              if (onNodeClick) {
+                onNodeClick(nodeContextMenu.node);
+              }
+              setNodeContextMenu(null);
+            }}
+          >
+            View details
+          </button>
+          {onFilterToLineage && (
+            <button
+              className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+              onClick={() => {
+                onFilterToLineage(nodeContextMenu.node);
+                setNodeContextMenu(null);
+              }}
+            >
+              Filter to lineage
+            </button>
+          )}
+          {onNodeDelete && (
+            <>
+              <div className="border-t my-1" />
+              {onNodeAddUpstream && (
+                <button
+                  className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+                  onClick={() => {
+                    onNodeAddUpstream(nodeContextMenu.node);
+                    setNodeContextMenu(null);
+                  }}
+                >
+                  Add upstream table
+                </button>
+              )}
+              {onNodeAddDownstream && (
+                <button
+                  className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+                  onClick={() => {
+                    onNodeAddDownstream(nodeContextMenu.node);
+                    setNodeContextMenu(null);
+                  }}
+                >
+                  Add downstream table
+                </button>
+              )}
+              {onDashboardAdd && nodeContextMenu.node.nodeType === 'table' && (
+                <button
+                  className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+                  onClick={() => {
+                    onDashboardAdd(nodeContextMenu.node);
+                    setNodeContextMenu(null);
+                  }}
+                >
+                  Add connected dashboard
+                </button>
+              )}
+              <button
+                className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2 text-destructive"
+                onClick={() => {
+                  onNodeDelete(nodeContextMenu.node);
+                  setNodeContextMenu(null);
+                }}
+              >
+                {nodeContextMenu.node.nodeType === 'dashboard' ? 'Delete dashboard' : 'Delete table'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Canvas context menu for creating new nodes */}
       {canvasContextMenu && (onCanvasCreateTable || onCanvasCreateDashboard) && (
