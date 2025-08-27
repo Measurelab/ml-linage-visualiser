@@ -274,38 +274,64 @@ function AppContent() {
     if (!parsedData) return;
     
     if (node.nodeType === 'dashboard') {
-      // Dashboard clicked - show dashboard details panel and highlight its connections
-      const dashboard = parsedData.dashboards.get(node.id);
-      if (dashboard) {
-        setSelectedDashboardDetails(dashboard);
-        // Clear table selection when showing dashboard details
-        setSelectedTable(null);
-        
-        // Highlight all tables connected to this dashboard
-        const connectedTables = getTablesByDashboard(node.id, parsedData);
-        setHighlightedNodes(connectedTables);
+      // Check if clicking the same dashboard that's already selected
+      const isAlreadySelected = selectedDashboardDetails?.id === node.id;
+      
+      if (isAlreadySelected) {
+        // Clear selection and highlighting
+        setSelectedDashboardDetails(null);
+        setHighlightedNodes(new Set());
+      } else {
+        // Dashboard clicked - show dashboard details panel and highlight its connections
+        const dashboard = parsedData.dashboards.get(node.id);
+        if (dashboard) {
+          setSelectedDashboardDetails(dashboard);
+          // Clear table selection when showing dashboard details
+          setSelectedTable(null);
+          
+          // Highlight all tables connected to this dashboard
+          const connectedTables = getTablesByDashboard(node.id, parsedData);
+          setHighlightedNodes(connectedTables);
+        }
       }
     } else {
-      // Table clicked - show table details and highlight its lineage
-      const table = parsedData.tables.get(node.id);
-      if (table) {
-        setSelectedTable(table);
-        // Clear dashboard details when showing table details
-        setSelectedDashboardDetails(null);
-        
-        // Calculate and highlight lineage
-        const lineageNodes = new Set<string>();
-        lineageNodes.add(node.id); // Include the clicked node
-        
-        // Add upstream tables
-        const upstreamTables = getUpstreamTables(node.id, parsedData);
-        upstreamTables.forEach(id => lineageNodes.add(id));
-        
-        // Add downstream tables
-        const downstreamTables = getDownstreamTables(node.id, parsedData);
-        downstreamTables.forEach(id => lineageNodes.add(id));
-        
-        setHighlightedNodes(lineageNodes);
+      // Check if clicking the same table that's already selected
+      const isAlreadySelected = selectedTable?.id === node.id;
+      
+      if (isAlreadySelected) {
+        // Clear selection and highlighting
+        setSelectedTable(null);
+        setHighlightedNodes(new Set());
+      } else {
+        // Table clicked - show table details and highlight its lineage
+        const table = parsedData.tables.get(node.id);
+        if (table) {
+          setSelectedTable(table);
+          // Clear dashboard details when showing table details
+          setSelectedDashboardDetails(null);
+          
+          // Calculate and highlight lineage
+          const lineageNodes = new Set<string>();
+          lineageNodes.add(node.id); // Include the clicked node
+          
+          // Add upstream tables
+          const upstreamTables = getUpstreamTables(node.id, parsedData);
+          upstreamTables.forEach(id => lineageNodes.add(id));
+          
+          // Add downstream tables
+          const downstreamTables = getDownstreamTables(node.id, parsedData);
+          downstreamTables.forEach(id => lineageNodes.add(id));
+          
+          // Add dashboards connected to this table or any tables in its lineage
+          parsedData.dashboardTables.forEach(dt => {
+            if (lineageNodes.has(dt.tableId)) {
+              // Add the dashboard ID to highlighted nodes
+              lineageNodes.add(dt.dashboardId);
+            }
+          });
+          
+          setHighlightedNodes(lineageNodes);
+        }
       }
     }
   };
