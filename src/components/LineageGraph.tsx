@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { GraphData, GraphNode, GraphLink } from '../types';
 import { getNodeColor } from '../utils/graphBuilder';
+import { Button } from '@/components/ui/button';
 
 // Helper function to get CSS variable color for D3
 const getCSSColor = (variableName: string, fallback: string = '#999'): string => {
@@ -662,19 +663,24 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       />
       
       {/* Layout control */}
-      <div className="absolute top-4 left-20 z-20">
-        <button
-          className="px-3 py-1 text-xs rounded-md shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-          onClick={reorganizeLayout}
-          title="Reorganize the layout of all nodes"
-        >
-          {isLayoutFrozen ? 'Reorganize layout' : 'Organizing...'}
-        </button>
+      <div className="absolute top-4 left-60 z-20">
+        <div className="bg-card border rounded-lg p-1 shadow-sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={reorganizeLayout}
+            title="Reorganize the layout of all nodes"
+            className="text-xs h-8 px-3"
+            disabled={!isLayoutFrozen}
+          >
+            {isLayoutFrozen ? 'Reorganize layout' : 'Organizing...'}
+          </Button>
+        </div>
       </div>
       
       {/* Layout status indicator */}
       {!isLayoutFrozen && (
-        <div className="absolute top-4 left-40 z-20">
+        <div className="absolute top-4 left-80 z-20">
           <div className="px-2 py-1 text-xs rounded-md bg-blue-100 text-blue-800 border">
             Layout organizing...
           </div>
