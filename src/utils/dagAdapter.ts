@@ -84,7 +84,7 @@ export const convertToDAGFormat = (graphData: GraphData): DAGData => {
       id: `edge-${sourceId}-${targetId}`,
       source: sourceId,
       target: targetId,
-      type: 'smoothstep',
+      type: 'simplebezier',
       animated: false,
       markerEnd: {
         type: MarkerType.ArrowClosed,
@@ -173,9 +173,9 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
   // Configure dagre graph with spacing optimized for wide, less vertical layout
   g.setGraph({ 
     rankdir: 'LR', // Left to right for layer-based grouping
-    ranksep: Math.max(avgNodeWidth * 3, 200), // Wider horizontal spacing between layers
-    nodesep: Math.max(avgNodeHeight * 0.8, 40),  // Reduced vertical spacing within layers
-    edgesep: 20,   // Reduced space between edges
+    ranksep: Math.max(avgNodeWidth * 4, 300), // Much wider horizontal spacing between layers
+    nodesep: Math.max(avgNodeHeight * 2, 100),  // Much more vertical spacing to reduce overlap
+    edgesep: 50,   // More space between parallel edges
     marginx: Math.max(avgNodeWidth * 1.5, 100),  // Increased horizontal margins
     marginy: Math.max(avgNodeHeight * 0.5, 30), // Reduced vertical margins
     acyclicer: 'greedy', // Handle cycles better

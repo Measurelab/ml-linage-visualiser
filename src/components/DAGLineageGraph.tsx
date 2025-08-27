@@ -259,6 +259,10 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
         minZoom={0.1}
         maxZoom={2}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        elevateEdgesOnSelect={false}
+        edgesFocusable={false}
+        edgesUpdatable={false}
+        connectionRadius={50}
       >
         <Background 
           color="var(--muted-foreground)" 
