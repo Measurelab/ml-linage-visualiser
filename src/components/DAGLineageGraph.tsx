@@ -8,6 +8,7 @@ import ReactFlow, {
   OnConnect,
   ConnectionMode,
   Node,
+  ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -49,6 +50,7 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const [nodeContextMenu, setNodeContextMenu] = useState<{
     x: number;
     y: number;
@@ -181,6 +183,36 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
     }
   }, [highlightedNodes, focusedNodeId, setNodes, setEdges]);
 
+  // Auto-center view when focused node changes (filtering)
+  useEffect(() => {
+    if (focusedNodeId && reactFlowInstance && nodes.length > 0) {
+      // Find the focused node to center on
+      const focusedNode = nodes.find(n => n.id === focusedNodeId);
+      
+      if (focusedNode) {
+        // Small delay to ensure layout is complete
+        setTimeout(() => {
+          reactFlowInstance.fitView({
+            padding: 0.3,
+            includeHiddenNodes: false,
+            nodes: [focusedNode], // Focus on the specific node
+            duration: 800,
+            maxZoom: 1.5,
+          });
+        }, 100);
+      } else {
+        // If focused node not found, fit all visible nodes
+        setTimeout(() => {
+          reactFlowInstance.fitView({
+            padding: 0.2,
+            includeHiddenNodes: false,
+            duration: 800,
+          });
+        }, 100);
+      }
+    }
+  }, [focusedNodeId, reactFlowInstance, nodes]);
+
   // Handle node clicks - single click for selection or dashboard filtering
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     const dagNode = node as DAGNode;
@@ -256,6 +288,7 @@ const DAGLineageGraph: React.FC<DAGLineageGraphProps> = ({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onInit={setReactFlowInstance}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeContextMenu={handleNodeContextMenu}

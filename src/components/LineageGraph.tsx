@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { GraphData, GraphNode, GraphLink } from '../types';
 import { getNodeColor } from '../utils/graphBuilder';
@@ -89,30 +89,61 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     return Math.max(minRadius, Math.min(maxRadius, radius));
   };
 
-  // Function to center the view on a specific node
-  const centerOnNode = (nodeId: string) => {
+  // Function to center the view on a specific node or all visible nodes
+  const centerOnNode = useCallback((nodeId?: string) => {
     if (!svgRef.current || !zoomRef.current || !gRef.current) return;
     
     const svg = d3.select(svgRef.current);
-    const node = data.nodes.find(n => n.id === nodeId);
-    
-    if (!node || !node.x || !node.y) return;
-    
     const svgRect = svgRef.current.getBoundingClientRect();
     const centerX = svgRect.width / 2;
     const centerY = svgRect.height / 2;
     
-    const scale = 1.2; // Slight zoom in when focusing
-    const x = centerX - node.x * scale;
-    const y = centerY - node.y * scale;
-    
-    svg.transition()
-      .duration(750)
-      .call(
-        zoomRef.current.transform,
-        d3.zoomIdentity.translate(x, y).scale(scale)
+    if (nodeId) {
+      // Center on specific node
+      const node = data.nodes.find(n => n.id === nodeId);
+      if (!node || !node.x || !node.y) return;
+      
+      const scale = 1.2; // Slight zoom in when focusing
+      const x = centerX - node.x * scale;
+      const y = centerY - node.y * scale;
+      
+      svg.transition()
+        .duration(750)
+        .call(
+          zoomRef.current.transform,
+          d3.zoomIdentity.translate(x, y).scale(scale)
+        );
+    } else {
+      // Fit all visible nodes in view
+      const visibleNodes = data.nodes.filter(n => n.x !== undefined && n.y !== undefined);
+      if (visibleNodes.length === 0) return;
+      
+      const xExtent = d3.extent(visibleNodes, d => d.x!) as [number, number];
+      const yExtent = d3.extent(visibleNodes, d => d.y!) as [number, number];
+      
+      const width = xExtent[1] - xExtent[0];
+      const height = yExtent[1] - yExtent[0];
+      const midX = (xExtent[0] + xExtent[1]) / 2;
+      const midY = (yExtent[0] + yExtent[1]) / 2;
+      
+      // Calculate scale to fit all nodes with padding
+      const scale = Math.min(
+        svgRect.width * 0.8 / width,
+        svgRect.height * 0.8 / height,
+        1.2 // Max zoom
       );
-  };
+      
+      const x = centerX - midX * scale;
+      const y = centerY - midY * scale;
+      
+      svg.transition()
+        .duration(750)
+        .call(
+          zoomRef.current.transform,
+          d3.zoomIdentity.translate(x, y).scale(scale)
+        );
+    }
+  }, [data.nodes]);
 
   useEffect(() => {
     if (!svgRef.current || !data.nodes.length) return;
@@ -552,17 +583,23 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     };
   }, [data, highlightedNodes, selectedNode, focusedNodeId, onNodeClick, onNodeDelete, onNodeAddUpstream, onNodeAddDownstream, width, height]);
 
-  // Handle focusing on a specific node when focusedNodeId changes
+  // Handle focusing when filtering changes
   useEffect(() => {
-    if (focusedNodeId) {
+    if (focusedNodeId || data.nodes.length < 50) {
       // Small delay to ensure the simulation has positioned the nodes
       const timer = setTimeout(() => {
-        centerOnNode(focusedNodeId);
+        if (focusedNodeId) {
+          // When filtering to a specific node's lineage, center on that node
+          centerOnNode(focusedNodeId);
+        } else if (data.nodes.length < 50) {
+          // When filtered to a small set of nodes, fit them all in view
+          centerOnNode(); // No nodeId = fit all visible nodes
+        }
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [focusedNodeId]);
+  }, [focusedNodeId, data.nodes.length, centerOnNode]);
 
 
   // Handle context menu click outside

@@ -163,16 +163,16 @@ export const applyDAGLayout = (nodes: DAGNode[], edges: DAGEdge[]): { nodes: DAG
     return sum + height;
   }, 0) / nodes.length;
 
-  // Configure dagre graph with spacing optimized for reducing congestion
+  // Configure dagre graph with spacing optimized for connection proximity
   g.setGraph({ 
     rankdir: 'LR', // Left to right for layer-based grouping
-    ranksep: Math.max(avgNodeWidth * 4.5, 350), // Even wider horizontal spacing between layers
-    nodesep: Math.max(avgNodeHeight * 3, 150),  // Much more vertical spacing to spread nodes
-    edgesep: 80,   // Significant space between parallel edges
-    marginx: Math.max(avgNodeWidth * 2, 120),  // Larger horizontal margins
-    marginy: Math.max(avgNodeHeight * 1, 50), // More vertical margins
+    ranksep: Math.max(avgNodeWidth * 2.5, 200), // Reduced horizontal spacing for closer layers
+    nodesep: Math.max(avgNodeHeight * 2, 100),  // Tighter vertical spacing for better grouping
+    edgesep: 50,   // Moderate space between parallel edges
+    marginx: Math.max(avgNodeWidth * 1.5, 100),  // Reasonable horizontal margins
+    marginy: Math.max(avgNodeHeight * 1, 50), // Standard vertical margins
     acyclicer: 'greedy', // Handle cycles better
-    ranker: 'network-simplex', // Use network-simplex for better results
+    ranker: 'tight-tree', // Use tight-tree to keep connected nodes closer
   });
   
   g.setDefaultEdgeLabel(() => ({}));
