@@ -653,7 +653,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       />
       
       {/* Layout control */}
-      <div className="absolute top-4 left-60 z-20">
+      <div className="absolute top-16 left-4 z-20">
         <div className="bg-card border rounded-lg p-1 shadow-sm">
           <Button
             variant="outline"
@@ -670,9 +670,11 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       
       {/* Layout status indicator */}
       {!isLayoutFrozen && (
-        <div className="absolute top-4 left-80 z-20">
-          <div className="px-2 py-1 text-xs rounded-md bg-blue-100 text-blue-800 border">
-            Layout organizing...
+        <div className="absolute top-16 left-4 z-20">
+          <div className="bg-card border rounded-lg p-1 shadow-sm">
+            <div className="text-xs h-8 px-3 flex items-center text-muted-foreground font-semibold">
+              Layout organizing...
+            </div>
           </div>
         </div>
       )}
