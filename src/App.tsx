@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import LineageGraph from './components/LineageGraph';
+import DAGLineageGraph from './components/DAGLineageGraph';
 import TableDetails from './components/TableDetails';
-import DashboardView from './components/DashboardView';
 import SearchFilter from './components/SearchFilter';
-import Legend from './components/Legend';
 import ProjectTabs from './components/ProjectTabs';
 import ExcelUpload from './components/ExcelUpload';
 import DataUpload from './components/DataUpload';
@@ -14,12 +13,12 @@ import CreateDashboardDialog, { DashboardFormData } from './components/CreateDas
 import DashboardDetails from './components/DashboardDetails';
 import { PortalProvider, usePortal } from './contexts/PortalContext';
 import { loadAndParseData } from './utils/dataParser';
-import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable, deleteDashboard } from './services/lineageData';
+import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable, deleteDashboard, deleteLineage, deleteDashboardTable } from './services/lineageData';
 import { getAllProjects, createProject } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
-import { buildGraphData } from './utils/graphBuilder';
+import { buildGraphData, getUpstreamTables, getDownstreamTables, getTablesByDashboard } from './utils/graphBuilder';
 import { ParsedData, FilterOptions, Table, GraphNode, Project, TableLineage, Dashboard, DashboardTable } from './types';
-import { Loader2, PanelLeftClose, PanelLeftOpen, Upload } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -32,8 +31,6 @@ function AppContent() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [selectedDashboardDetails, setSelectedDashboardDetails] = useState<Dashboard | null>(null);
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
-  const [selectedDashboard, setSelectedDashboard] = useState<string | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadMode, setUploadMode] = useState<'excel' | 'csv'>('excel');
@@ -43,7 +40,9 @@ function AppContent() {
     tableTypes: [],
     showScheduledOnly: false,
     searchTerm: '',
-    selectedDashboard: undefined
+    selectedDashboards: [],
+    focusedTableId: undefined,
+    focusedDashboardId: undefined
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tableToDelete, setTableToDelete] = useState<GraphNode | null>(null);
@@ -53,6 +52,7 @@ function AppContent() {
   const [createDashboardDialogOpen, setCreateDashboardDialogOpen] = useState(false);
   const [dashboardConnectionNode, setDashboardConnectionNode] = useState<GraphNode | null>(null);
   const [canvasClickPosition, setCanvasClickPosition] = useState<{ x: number; y: number } | null>(null);
+  const [layoutMode, setLayoutMode] = useState<'force' | 'dag'>('force');
 
   useEffect(() => {
     const checkAuthentication = async () => {
@@ -131,7 +131,6 @@ function AppContent() {
       setSelectedTable(null);
       setSelectedDashboardDetails(null);
       setHighlightedNodes(new Set());
-      setSelectedDashboard(null);
       
       // Only load data if we don't already have it (e.g., from upload)
       if (!parsedData) {
@@ -143,7 +142,6 @@ function AppContent() {
       setSelectedTable(null);
       setSelectedDashboardDetails(null);
       setHighlightedNodes(new Set());
-      setSelectedDashboard(null);
     }
   }, [activeProject]);
 
@@ -273,22 +271,90 @@ function AppContent() {
   }, [parsedData, filters]);
 
   const handleNodeClick = (node: GraphNode) => {
+    if (!parsedData) return;
+    
     if (node.nodeType === 'dashboard') {
-      // Dashboard clicked - show dashboard details panel
-      const dashboard = parsedData?.dashboards.get(node.id);
-      if (dashboard) {
-        setSelectedDashboardDetails(dashboard);
-        // Clear table selection when showing dashboard details
-        setSelectedTable(null);
+      // Check if clicking the same dashboard that's already selected
+      const isAlreadySelected = selectedDashboardDetails?.id === node.id;
+      
+      if (isAlreadySelected) {
+        // Clear selection and highlighting
+        setSelectedDashboardDetails(null);
+        setHighlightedNodes(new Set());
+      } else {
+        // Dashboard clicked - show dashboard details panel and highlight its connections
+        const dashboard = parsedData.dashboards.get(node.id);
+        if (dashboard) {
+          setSelectedDashboardDetails(dashboard);
+          // Clear table selection when showing dashboard details
+          setSelectedTable(null);
+          
+          // Highlight all tables connected to this dashboard AND the dashboard itself
+          const connectedTables = getTablesByDashboard(node.id, parsedData);
+          const highlightedNodes = new Set(connectedTables);
+          highlightedNodes.add(node.id); // Include the dashboard itself
+          setHighlightedNodes(highlightedNodes);
+        }
       }
     } else {
-      // Table clicked - show table details
-      const table = parsedData?.tables.get(node.id);
-      if (table) {
-        setSelectedTable(table);
-        // Clear dashboard details when showing table details
-        setSelectedDashboardDetails(null);
+      // Check if clicking the same table that's already selected
+      const isAlreadySelected = selectedTable?.id === node.id;
+      
+      if (isAlreadySelected) {
+        // Clear selection and highlighting
+        setSelectedTable(null);
+        setHighlightedNodes(new Set());
+      } else {
+        // Table clicked - show table details and highlight its lineage
+        const table = parsedData.tables.get(node.id);
+        if (table) {
+          setSelectedTable(table);
+          // Clear dashboard details when showing table details
+          setSelectedDashboardDetails(null);
+          
+          // Calculate and highlight lineage
+          const lineageNodes = new Set<string>();
+          lineageNodes.add(node.id); // Include the clicked node
+          
+          // Add upstream tables
+          const upstreamTables = getUpstreamTables(node.id, parsedData);
+          upstreamTables.forEach(id => lineageNodes.add(id));
+          
+          // Add downstream tables
+          const downstreamTables = getDownstreamTables(node.id, parsedData);
+          downstreamTables.forEach(id => lineageNodes.add(id));
+          
+          // Add dashboards connected to this table or any tables in its lineage
+          parsedData.dashboardTables.forEach(dt => {
+            if (lineageNodes.has(dt.tableId)) {
+              // Add the dashboard ID to highlighted nodes
+              lineageNodes.add(dt.dashboardId);
+            }
+          });
+          
+          setHighlightedNodes(lineageNodes);
+        }
       }
+    }
+  };
+
+  const handleFilterToLineage = (node: GraphNode) => {
+    if (node.nodeType === 'dashboard') {
+      // Filter to show only tables connected to this dashboard
+      setFilters(prev => ({
+        ...prev,
+        focusedDashboardId: prev.focusedDashboardId === node.id ? undefined : node.id,
+        focusedTableId: undefined,
+        selectedDashboards: []
+      }));
+    } else {
+      // Filter to show only the lineage of this table
+      setFilters(prev => ({
+        ...prev,
+        focusedTableId: prev.focusedTableId === node.id ? undefined : node.id,
+        focusedDashboardId: undefined,
+        selectedDashboards: []
+      }));
     }
   };
 
@@ -298,6 +364,14 @@ function AppContent() {
       setSelectedTable(table);
       // Clear dashboard details when selecting a table
       setSelectedDashboardDetails(null);
+      
+      // Focus on the selected table's lineage
+      setFilters(prev => ({
+        ...prev,
+        focusedTableId: tableId,
+        focusedDashboardId: undefined,
+        selectedDashboards: []
+      }));
     }
   };
 
@@ -606,12 +680,46 @@ function AppContent() {
     setCreateDashboardDialogOpen(true);
   };
 
+  // Handle disconnecting lineage
+  const handleDisconnectUpstream = async (sourceTableId: string, targetTableId: string) => {
+    if (!activeProject) return;
+    
+    try {
+      await deleteLineage(sourceTableId, targetTableId, activeProject.id);
+      await handleTableUpdate();
+    } catch (error) {
+      console.error('Error deleting upstream lineage:', error);
+    }
+  };
+
+  const handleDisconnectDownstream = async (sourceTableId: string, targetTableId: string) => {
+    if (!activeProject) return;
+    
+    try {
+      await deleteLineage(sourceTableId, targetTableId, activeProject.id);
+      await handleTableUpdate();
+    } catch (error) {
+      console.error('Error deleting downstream lineage:', error);
+    }
+  };
+
+  const handleDisconnectDashboard = async (tableId: string, dashboardId: string) => {
+    if (!activeProject) return;
+    
+    try {
+      await deleteDashboardTable(tableId, dashboardId, activeProject.id);
+      await handleTableUpdate();
+    } catch (error) {
+      console.error('Error deleting dashboard-table connection:', error);
+    }
+  };
+
   const handleCreateDashboard = async (dashboardData: DashboardFormData) => {
     if (!activeProject) return;
     
     try {
       // Generate unique dashboard ID
-      const dashboardId = `dashboard_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const dashboardId = `dashboard_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
       
       const newDashboard: Dashboard = {
         id: dashboardId,
@@ -717,38 +825,13 @@ function AppContent() {
     }
   };
 
-  const handleBackToProjects = async () => {
+  const handleBackToProjects = () => {
+    // Navigate back to project selection interface
     setShowUpload(false);
-    
-    // Clear current project state
+    setActiveProject(null);  // This will trigger the ProjectTabs interface
     setParsedData(null);
-    setActiveProject(null);
-    
-    // Reinitialize the app to load available projects
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Check if we have any projects (filtered by portal if in iframe, unless admin)
-      const projects = await getAllProjects(portalName, isAdmin);
-      
-      if (projects.length === 0) {
-        // No projects exist, show upload interface
-        setShowUpload(true);
-        setLoading(false);
-        return;
-      }
-      
-      // Set the first project as active
-      setActiveProject(projects[0]);
-      
-    } catch (err) {
-      console.error('Failed to load projects:', err);
-      setError('Failed to load projects. Please try refreshing the page.');
-      setShowUpload(true);
-    } finally {
-      setLoading(false);
-    }
+    setError(null);
+    setLoading(false);
   };
 
   // Show login screen if not authenticated
@@ -841,7 +924,52 @@ function AppContent() {
     );
   }
 
-  if (!parsedData && !showUpload) {
+  // Show project selection interface when no active project and Supabase is enabled
+  if (!activeProject && !showUpload && isSupabaseEnabled) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="bg-card shadow-sm border-b">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-medium">BigQuery Lineage Visualizer</h1>
+                {isAdmin && <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-semibold">MEASURELAB ADMIN</span>}
+                <p className="text-sm text-muted-foreground mt-1">
+                  Select a project to view its lineage data
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUpload(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Create New Project
+              </Button>
+            </div>
+          </div>
+          
+          {/* Project Tabs */}
+          <div className="border-t">
+            <ProjectTabs
+              activeProject={activeProject}
+              onProjectSelect={handleProjectSelect}
+            />
+          </div>
+        </header>
+        
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-lg font-medium mb-2">Select a project to get started</h2>
+            <p className="text-muted-foreground">Choose a project from the tabs above or create a new one</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show "No Data Available" only for non-Supabase environments or when data is missing for an active project
+  if (!parsedData && !showUpload && (!isSupabaseEnabled || activeProject)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -900,38 +1028,69 @@ function AppContent() {
       </header>
 
       <div className="flex h-[calc(100vh-80px)]">
-        <div className={`${sidebarCollapsed ? 'w-12' : 'w-[480px]'} bg-muted/10 border-r overflow-y-auto transition-all duration-300 ease-in-out`}>
-          
-          {!sidebarCollapsed && (
-            <div className="p-4 space-y-4">
-              <Legend />
-              <DashboardView
-                parsedData={parsedData}
-                selectedDashboard={selectedDashboard}
-                onDashboardSelect={(dashboardId) => {
-                  setSelectedDashboard(dashboardId);
-                  // Update filters to include the selected dashboard
-                  setFilters(prev => ({
-                    ...prev,
-                    selectedDashboard: dashboardId || undefined
-                  }));
-                }}
-                onTableHighlight={setHighlightedNodes}
-              />
-            </div>
-          )}
-        </div>
-
         <div className="flex-1 flex flex-col">
           <div className="p-4 bg-card">
             <SearchFilter
               parsedData={parsedData}
               filters={filters}
               onFiltersChange={setFilters}
+              onTableHighlight={setHighlightedNodes}
             />
           </div>
 
           <div className="flex-1 relative bg-muted/5">
+            
+            {/* Layout Mode Selector and Data Count */}
+            <div className="absolute top-4 left-4 z-20 flex gap-3 items-center">
+              <div className="flex gap-1 bg-card border rounded-lg p-1 shadow-sm">
+                <Button
+                  variant={layoutMode === 'force' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLayoutMode('force')}
+                  className="text-xs h-8 px-3"
+                >
+                  Force Layout
+                </Button>
+                <Button
+                  variant={layoutMode === 'dag' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLayoutMode('dag')}
+                  className="text-xs h-8 px-3"
+                >
+                  DAG Layout
+                </Button>
+              </div>
+              
+              {/* Data Count Display */}
+              {(() => {
+                if (!graphData) return null;
+                
+                const hasActiveFilters = 
+                  filters.datasets.length > 0 ||
+                  filters.layers.length > 0 ||
+                  filters.tableTypes.length > 0 ||
+                  filters.showScheduledOnly ||
+                  filters.searchTerm !== '' ||
+                  (filters.selectedDashboards && filters.selectedDashboards.length > 0) ||
+                  filters.focusedTableId ||
+                  filters.focusedDashboardId;
+                
+                const tableCount = graphData.nodes.filter(n => n.nodeType === 'table').length;
+                const dashboardCount = graphData.nodes.filter(n => n.nodeType === 'dashboard').length;
+                const connectionCount = graphData.links.length;
+                
+                return (
+                  <div className="bg-card border rounded-lg px-3 py-2 shadow-sm">
+                    <div className="text-xs text-muted-foreground font-semibold">
+                      {hasActiveFilters ? 'Filtered view: ' : 'Total: '}
+                      <span className="text-foreground">{tableCount} tables</span>
+                      {dashboardCount > 0 && <>, <span className="text-foreground">{dashboardCount} dashboards</span></>}
+                      , <span className="text-foreground">{connectionCount} connections</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
             
             {/* Loading overlay when switching projects */}
             {loading && (
@@ -943,32 +1102,36 @@ function AppContent() {
               </div>
             )}
             
-            {/* Sidebar Toggle Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 left-4 z-20 h-10 w-10 bg-background/80 hover:bg-background shadow-md"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen className="h-5 w-5" />
-              ) : (
-                <PanelLeftClose className="h-5 w-5" />
-              )}
-            </Button>
-            
-            <LineageGraph
-              data={graphData}
-              onNodeClick={handleNodeClick}
-              onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
-              onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
-              onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
-              onDashboardAdd={isSupabaseEnabled && activeProject ? handleDashboardAdd : undefined}
-              onCanvasCreateTable={isSupabaseEnabled && activeProject ? handleCanvasCreateTable : undefined}
-              onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
-              highlightedNodes={highlightedNodes}
-              focusedNodeId={selectedTable?.id}
-            />
+            {/* Conditional Graph Rendering */}
+            {layoutMode === 'force' ? (
+              <LineageGraph
+                data={graphData}
+                onNodeClick={handleNodeClick}
+                onFilterToLineage={handleFilterToLineage}
+                onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
+                onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
+                onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
+                onDashboardAdd={isSupabaseEnabled && activeProject ? handleDashboardAdd : undefined}
+                onCanvasCreateTable={isSupabaseEnabled && activeProject ? handleCanvasCreateTable : undefined}
+                onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
+                highlightedNodes={highlightedNodes}
+                focusedNodeId={filters.focusedTableId || filters.focusedDashboardId}
+              />
+            ) : (
+              <DAGLineageGraph
+                data={graphData}
+                onNodeClick={handleNodeClick}
+                onFilterToLineage={handleFilterToLineage}
+                onNodeDelete={isSupabaseEnabled && activeProject ? handleNodeDelete : undefined}
+                onNodeAddUpstream={isSupabaseEnabled && activeProject ? handleNodeAddUpstream : undefined}
+                onNodeAddDownstream={isSupabaseEnabled && activeProject ? handleNodeAddDownstream : undefined}
+                onDashboardAdd={isSupabaseEnabled && activeProject ? handleDashboardAdd : undefined}
+                onCanvasCreateTable={isSupabaseEnabled && activeProject ? handleCanvasCreateTable : undefined}
+                onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
+                highlightedNodes={highlightedNodes}
+                focusedNodeId={filters.focusedTableId || filters.focusedDashboardId}
+              />
+            )}
             
             {graphData.nodes.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center">
@@ -1003,9 +1166,10 @@ function AppContent() {
                             tableTypes: [],
                             showScheduledOnly: false,
                             searchTerm: '',
-                            selectedDashboard: undefined
+                            selectedDashboards: [],
+                            focusedTableId: undefined,
+                            focusedDashboardId: undefined
                           });
-                          setSelectedDashboard(null);
                           setHighlightedNodes(new Set());
                         }}
                         variant="link"
@@ -1030,6 +1194,9 @@ function AppContent() {
           onConnectUpstream={isSupabaseEnabled && activeProject ? handleConnectUpstreamTable : undefined}
           onConnectDownstream={isSupabaseEnabled && activeProject ? handleConnectDownstreamTable : undefined}
           onConnectDashboard={isSupabaseEnabled && activeProject ? handleConnectTableToDashboard : undefined}
+          onDisconnectUpstream={isSupabaseEnabled && activeProject ? handleDisconnectUpstream : undefined}
+          onDisconnectDownstream={isSupabaseEnabled && activeProject ? handleDisconnectDownstream : undefined}
+          onDisconnectDashboard={isSupabaseEnabled && activeProject ? handleDisconnectDashboard : undefined}
           onTableUpdate={handleTableUpdate}
           activeProjectId={activeProject?.id}
         />
@@ -1041,6 +1208,7 @@ function AppContent() {
           onClose={() => setSelectedDashboardDetails(null)}
           onTableSelect={handleTableSelect}
           onConnectTable={isSupabaseEnabled && activeProject ? handleConnectTableToDashboard : undefined}
+          onDisconnectTable={isSupabaseEnabled && activeProject ? handleDisconnectDashboard : undefined}
         />
         
         {/* Delete confirmation dialog */}

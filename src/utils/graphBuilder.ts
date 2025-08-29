@@ -23,16 +23,12 @@ export const buildGraphData = (
   const allNodes = new Map([...filteredTableNodes, ...dashboardNodes]);
   
   // Table-to-table connections
-  console.log('🔍 Building graph with lineages:', lineages.length);
-  console.log('🔍 Available table IDs:', Array.from(tableIds));
   
   const tableLinks = lineages
     .filter(lineage => {
       const hasSource = tableIds.has(lineage.sourceTableId);
       const hasTarget = tableIds.has(lineage.targetTableId);
-      if (!hasSource || !hasTarget) {
-        console.log(`⚠️ Filtering out lineage ${lineage.sourceTableId} → ${lineage.targetTableId} (source: ${hasSource}, target: ${hasTarget})`);
-      }
+      // Skip invalid connections where source or target is not in filtered tables
       return hasSource && hasTarget;
     })
     .map(lineage => ({
@@ -40,7 +36,6 @@ export const buildGraphData = (
       target: lineage.targetTableId
     }));
   
-  console.log('🔗 Created table links:', tableLinks.length, tableLinks);
 
   // Table-to-dashboard connections
   const dashboardLinks = dashboardTables
@@ -92,6 +87,65 @@ const filterNodes = (
   const filteredNodes = new Map<string, GraphNode>();
   const { tables } = parsedData;
   
+  // If a table is focused, only show that table and its connections
+  if (filters?.focusedTableId) {
+    const focusedTable = tables.get(filters.focusedTableId);
+    if (focusedTable) {
+      // Get all upstream and downstream tables
+      const upstreamTables = getUpstreamTables(filters.focusedTableId, parsedData);
+      const downstreamTables = getDownstreamTables(filters.focusedTableId, parsedData);
+      
+      // Build set of tables to include
+      const includedTableIds = new Set<string>();
+      includedTableIds.add(filters.focusedTableId); // Include the focused table itself
+      upstreamTables.forEach(id => includedTableIds.add(id));
+      downstreamTables.forEach(id => includedTableIds.add(id));
+      
+      // Add these tables to filtered nodes
+      includedTableIds.forEach(tableId => {
+        const table = tables.get(tableId);
+        if (table) {
+          const graphNode: GraphNode = { ...table, nodeType: 'table' as const };
+          
+          // Preserve initial positions if available
+          if ((table as any).initialPosition) {
+            graphNode.x = (table as any).initialPosition.x;
+            graphNode.y = (table as any).initialPosition.y;
+          }
+          
+          filteredNodes.set(tableId, graphNode);
+        }
+      });
+      
+      return filteredNodes;
+    }
+  }
+  
+  // If a dashboard is focused, show all tables connected to it and their lineages
+  if (filters?.focusedDashboardId) {
+    // Get all tables connected to this dashboard (direct + upstream + downstream)
+    const tablesInDashboard = getTablesByDashboard(filters.focusedDashboardId, parsedData);
+    
+    // Add these tables to filtered nodes
+    tablesInDashboard.forEach(tableId => {
+      const table = tables.get(tableId);
+      if (table) {
+        const graphNode: GraphNode = { ...table, nodeType: 'table' as const };
+        
+        // Preserve initial positions if available
+        if ((table as any).initialPosition) {
+          graphNode.x = (table as any).initialPosition.x;
+          graphNode.y = (table as any).initialPosition.y;
+        }
+        
+        filteredNodes.set(tableId, graphNode);
+      }
+    });
+    
+    return filteredNodes;
+  }
+  
+  // Regular filtering logic
   tables.forEach((table, id) => {
     let include = true;
     
@@ -121,10 +175,14 @@ const filterNodes = (
         );
       }
       
-      // Filter by selected dashboard - show only tables connected to this dashboard
-      if (filters.selectedDashboard) {
-        const tablesInDashboard = getTablesByDashboard(filters.selectedDashboard, parsedData);
-        include = include && tablesInDashboard.has(table.id);
+      // Filter by selected dashboards - show only tables connected to these dashboards
+      if (filters.selectedDashboards && filters.selectedDashboards.length > 0) {
+        const tablesConnectedToSelectedDashboards = new Set<string>();
+        filters.selectedDashboards.forEach(dashboardId => {
+          const tablesInDashboard = getTablesByDashboard(dashboardId, parsedData);
+          tablesInDashboard.forEach(tableId => tablesConnectedToSelectedDashboards.add(tableId));
+        });
+        include = include && tablesConnectedToSelectedDashboards.has(table.id);
       }
     }
     
@@ -150,8 +208,64 @@ const getDashboardNodes = (
   filters?: Partial<FilterOptions>
 ): Map<string, GraphNode> => {
   const dashboardNodes = new Map<string, GraphNode>();
-  const { dashboards } = parsedData;
+  const { dashboards, dashboardTables } = parsedData;
   
+  // If a table is focused, only show dashboards connected to the focused lineage
+  if (filters?.focusedTableId) {
+    // Get all tables in the focused lineage
+    const upstreamTables = getUpstreamTables(filters.focusedTableId, parsedData);
+    const downstreamTables = getDownstreamTables(filters.focusedTableId, parsedData);
+    const lineageTables = new Set<string>();
+    lineageTables.add(filters.focusedTableId);
+    upstreamTables.forEach(id => lineageTables.add(id));
+    downstreamTables.forEach(id => lineageTables.add(id));
+    
+    // Find dashboards connected to any of these tables
+    const connectedDashboards = new Set<string>();
+    dashboardTables.forEach(dt => {
+      if (lineageTables.has(dt.tableId)) {
+        connectedDashboards.add(dt.dashboardId);
+      }
+    });
+    
+    // Add these dashboards to the graph
+    connectedDashboards.forEach(dashboardId => {
+      const dashboard = dashboards.get(dashboardId);
+      if (dashboard) {
+        const graphNode: GraphNode = { ...dashboard, nodeType: 'dashboard' as const };
+        
+        // Preserve initial positions if available
+        if ((dashboard as any).initialPosition) {
+          graphNode.x = (dashboard as any).initialPosition.x;
+          graphNode.y = (dashboard as any).initialPosition.y;
+        }
+        
+        dashboardNodes.set(dashboardId, graphNode);
+      }
+    });
+    
+    return dashboardNodes;
+  }
+  
+  // If a dashboard is focused, only show that dashboard
+  if (filters?.focusedDashboardId) {
+    const dashboard = dashboards.get(filters.focusedDashboardId);
+    if (dashboard) {
+      const graphNode: GraphNode = { ...dashboard, nodeType: 'dashboard' as const };
+      
+      // Preserve initial positions if available
+      if ((dashboard as any).initialPosition) {
+        graphNode.x = (dashboard as any).initialPosition.x;
+        graphNode.y = (dashboard as any).initialPosition.y;
+      }
+      
+      dashboardNodes.set(filters.focusedDashboardId, graphNode);
+    }
+    
+    return dashboardNodes;
+  }
+  
+  // Regular filtering logic
   dashboards.forEach((dashboard, id) => {
     let include = true;
     
@@ -166,9 +280,9 @@ const getDashboardNodes = (
         );
       }
       
-      // If filtering by selected dashboard, only show that dashboard
-      if (filters.selectedDashboard) {
-        include = include && dashboard.id === filters.selectedDashboard;
+      // If filtering by selected dashboards, only show those dashboards
+      if (filters.selectedDashboards && filters.selectedDashboards.length > 0) {
+        include = include && filters.selectedDashboards.includes(dashboard.id);
       }
     }
     
@@ -231,6 +345,41 @@ export const getUpstreamTables = (
   return upstreamTables;
 };
 
+// Get upstream tables with their distances from the given table
+export const getUpstreamTablesWithDistance = (
+  tableId: string,
+  parsedData: ParsedData
+): Map<string, number> => {
+  const distances = new Map<string, number>();
+  const visited = new Set<string>();
+  const queue: { id: string; distance: number }[] = [{ id: tableId, distance: 0 }];
+  
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    
+    if (visited.has(current.id)) {
+      continue;
+    }
+    visited.add(current.id);
+    
+    // Find all tables that feed into this table
+    parsedData.lineages.forEach(lineage => {
+      if (lineage.targetTableId === current.id && lineage.sourceTableId !== tableId) {
+        // Only update distance if we haven't seen this table or found a shorter path
+        const existingDistance = distances.get(lineage.sourceTableId);
+        const newDistance = current.distance + 1;
+        
+        if (existingDistance === undefined || newDistance < existingDistance) {
+          distances.set(lineage.sourceTableId, newDistance);
+          queue.push({ id: lineage.sourceTableId, distance: newDistance });
+        }
+      }
+    });
+  }
+  
+  return distances;
+};
+
 // Get all downstream tables (targets) for a given table
 export const getDownstreamTables = (
   tableId: string,
@@ -255,6 +404,41 @@ export const getDownstreamTables = (
   });
   
   return downstreamTables;
+};
+
+// Get downstream tables with their distances from the given table
+export const getDownstreamTablesWithDistance = (
+  tableId: string,
+  parsedData: ParsedData
+): Map<string, number> => {
+  const distances = new Map<string, number>();
+  const visited = new Set<string>();
+  const queue: { id: string; distance: number }[] = [{ id: tableId, distance: 0 }];
+  
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    
+    if (visited.has(current.id)) {
+      continue;
+    }
+    visited.add(current.id);
+    
+    // Find all tables that this table feeds into
+    parsedData.lineages.forEach(lineage => {
+      if (lineage.sourceTableId === current.id && lineage.targetTableId !== tableId) {
+        // Only update distance if we haven't seen this table or found a shorter path
+        const existingDistance = distances.get(lineage.targetTableId);
+        const newDistance = current.distance + 1;
+        
+        if (existingDistance === undefined || newDistance < existingDistance) {
+          distances.set(lineage.targetTableId, newDistance);
+          queue.push({ id: lineage.targetTableId, distance: newDistance });
+        }
+      }
+    });
+  }
+  
+  return distances;
 };
 
 // Get all tables connected to a dashboard (direct + upstream + downstream)
@@ -286,24 +470,34 @@ export const getTablesByDashboard = (
 };
 
 
+// Helper function to get CSS variable color
+const getCSSVariableColor = (variableName: string): string => {
+  if (typeof window !== 'undefined') {
+    const computedStyle = getComputedStyle(document.documentElement);
+    const color = computedStyle.getPropertyValue(variableName).trim();
+    return color || '#6b7280'; // fallback to gray
+  }
+  return '#6b7280'; // fallback for SSR
+};
+
 export const getLayerColor = (layer: string): string => {
   switch (layer) {
     case 'Raw':
-      return '#10b981'; // green
+      return getCSSVariableColor('--chart-1'); // Deep Purple - data sources
     case 'Inter':
-      return '#3b82f6'; // blue
+      return getCSSVariableColor('--chart-2'); // Medium Blue - intermediate processing
     case 'Target':
-      return '#f59e0b'; // amber
+      return getCSSVariableColor('--chart-3'); // Measurelab Green - processed outputs
     case 'Reporting':
-      return '#ef4444'; // red
+      return getCSSVariableColor('--chart-4'); // Golden Orange - final reports/dashboards
     default:
-      return '#6b7280'; // gray
+      return getCSSVariableColor('--muted-foreground'); // Muted gray - undefined layers
   }
 };
 
 export const getNodeColor = (node: GraphNode): string => {
   if (node.nodeType === 'dashboard') {
-    return '#8b5cf6'; // purple for dashboards
+    return getCSSVariableColor('--chart-5'); // Magenta - distinct from target tables
   }
   // For table nodes, use the existing layer color
   return getLayerColor((node as any).layer);

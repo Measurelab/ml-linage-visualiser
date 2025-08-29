@@ -1,20 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Table, ParsedData, Column, CreateColumnRequest } from '@/types';
-import { getUpstreamTables, getDownstreamTables } from '@/utils/graphBuilder';
+import { getUpstreamTables, getDownstreamTables, getUpstreamTablesWithDistance, getDownstreamTablesWithDistance } from '@/utils/graphBuilder';
 import { getTableColumns, createColumn, deleteColumn, createBulkColumns, areColumnsAvailable } from '@/services/columns';
 import { updateTable } from '@/services/lineageData';
-import { isSupabaseEnabled } from '@/services/supabase';
-import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X } from 'lucide-react';
+import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import ColumnList from './ColumnList';
 import AddColumnModal from './AddColumnModal';
 import UploadSchemaModal from './UploadSchemaModal';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -46,6 +38,9 @@ interface TableDetailsProps {
   onConnectUpstream?: (sourceTableId: string, targetTableId: string) => void;
   onConnectDownstream?: (sourceTableId: string, targetTableId: string) => void;
   onConnectDashboard?: (tableId: string, dashboardId: string) => void;
+  onDisconnectUpstream?: (sourceTableId: string, targetTableId: string) => void;
+  onDisconnectDownstream?: (sourceTableId: string, targetTableId: string) => void;
+  onDisconnectDashboard?: (tableId: string, dashboardId: string) => void;
   onTableUpdate?: () => void;
   activeProjectId?: string;
 }
@@ -59,6 +54,9 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   onConnectUpstream,
   onConnectDownstream,
   onConnectDashboard,
+  onDisconnectUpstream,
+  onDisconnectDownstream,
+  onDisconnectDashboard,
   onTableUpdate,
   activeProjectId
 }) => {
@@ -69,6 +67,9 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   const [columnsError, setColumnsError] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<Partial<Table>>({});
+  const [upstreamExpanded, setUpstreamExpanded] = useState(false);
+  const [downstreamExpanded, setDownstreamExpanded] = useState(false);
+  const [dashboardsExpanded, setDashboardsExpanded] = useState(false);
 
   // Load columns when table changes
   useEffect(() => {
@@ -93,12 +94,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   }, [table?.id]);
 
   // Add error boundary for this component
-  useEffect(() => {
-    console.log('TableDetails component mounted/updated', { 
-      tableId: table?.id, 
-      supabaseEnabled: isSupabaseEnabled 
-    });
-  }, [table?.id]);
 
   // Initialize edit form when table changes
   useEffect(() => {
@@ -117,8 +112,57 @@ const TableDetails: React.FC<TableDetailsProps> = ({
 
   if (!table) return null;
 
+  // Helper function to get table by ID - defined first to avoid reference errors
+  const getTableById = (id: string) => parsedData.tables.get(id);
+  const getDashboardById = (id: string) => parsedData.dashboards.get(id);
+
   const upstreamTables = getUpstreamTables(table.id, parsedData);
   const downstreamTables = getDownstreamTables(table.id, parsedData);
+  
+  // Get connected dashboards for this table
+  const connectedDashboards = new Set<string>();
+  parsedData.dashboardTables.forEach(dt => {
+    if (dt.tableId === table.id) {
+      connectedDashboards.add(dt.dashboardId);
+    }
+  });
+  
+  // Get tables with distances for grouping
+  const upstreamTablesWithDistance = getUpstreamTablesWithDistance(table.id, parsedData);
+  const downstreamTablesWithDistance = getDownstreamTablesWithDistance(table.id, parsedData);
+  
+  // Helper function to group tables by distance
+  const groupTablesByDistance = (tablesWithDistance: Map<string, number>) => {
+    const groups = new Map<number, string[]>();
+    
+    tablesWithDistance.forEach((distance, tableId) => {
+      if (!groups.has(distance)) {
+        groups.set(distance, []);
+      }
+      groups.get(distance)!.push(tableId);
+    });
+    
+    // Sort each group alphabetically
+    groups.forEach((tableIds) => {
+      tableIds.sort((a, b) => {
+        const tableA = getTableById(a);
+        const tableB = getTableById(b);
+        return (tableA?.name || '').localeCompare(tableB?.name || '');
+      });
+    });
+    
+    return groups;
+  };
+  
+  const upstreamGroups = groupTablesByDistance(upstreamTablesWithDistance);
+  const downstreamGroups = groupTablesByDistance(downstreamTablesWithDistance);
+  
+  // Helper function to get distance badge color
+  const getDistanceBadgeColor = (distance: number) => {
+    if (distance === 1) return 'bg-green-100 text-green-800 border-green-200';
+    if (distance === 2) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    return 'bg-orange-100 text-orange-800 border-orange-200';
+  };
 
   const loadColumns = async () => {
     if (!table) return;
@@ -172,8 +216,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
     }
   };
 
-  const getTableById = (id: string) => parsedData.tables.get(id);
-
   const getLayerVariant = (layer: string): "default" | "success" | "info" | "warning" | "destructive" => {
     switch (layer) {
       case 'Raw': return 'success';
@@ -213,16 +255,23 @@ const TableDetails: React.FC<TableDetailsProps> = ({
     }
   };
 
+  if (!isOpen || !table) return null;
+
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className="w-[600px] sm:w-[800px]">
-        <SheetHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <SheetTitle>{isEditing ? 'Edit table' : table.name}</SheetTitle>
-              <SheetDescription>{table.id}</SheetDescription>
-            </div>
-            <div className="flex items-center gap-2">
+    <div 
+      className={`fixed top-0 right-0 h-full bg-card border-l shadow-lg transition-transform duration-300 ease-in-out z-40 ${
+        isOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}
+      style={{ width: '600px' }}
+    >
+      <div className="flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold truncate">{isEditing ? 'Edit table' : table.name}</h2>
+            <p className="text-sm text-muted-foreground">{table.id}</p>
+          </div>
+          <div className="flex items-center gap-2">
               {activeProjectId && (
                 isEditing ? (
                   <>
@@ -256,12 +305,20 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                   </Button>
                 )
               )}
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="flex-shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-        </SheetHeader>
+        </div>
         
-        <ScrollArea className="h-[calc(100vh-120px)] mt-6">
-          <div className="space-y-4 px-2">
+        {/* Content */}
+        <ScrollArea className="flex-1 p-4">
+          <div className="space-y-4">
             {isEditing ? (
               <div className="space-y-4">
                 <div>
@@ -460,9 +517,13 @@ const TableDetails: React.FC<TableDetailsProps> = ({
             {(upstreamTables.size > 0 || onConnectUpstream) && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold">
+                  <button 
+                    className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
+                    onClick={() => setUpstreamExpanded(!upstreamExpanded)}
+                  >
+                    {upstreamExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     Upstream tables ({upstreamTables.size})
-                  </h3>
+                  </button>
                   {onConnectUpstream && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -483,7 +544,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                               key={`upstream-${t.id}`}
                               onClick={() => {
                                 try {
-                                  console.log('TableDetails: Connect upstream table:', t.id, 'to', table.id);
                                   onConnectUpstream(t.id, table.id);
                                 } catch (error) {
                                   console.error('Error connecting upstream table:', error);
@@ -508,40 +568,88 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     </DropdownMenu>
                   )}
                 </div>
-                <div className="space-y-2">
-                  {Array.from(upstreamTables).map(id => {
-                    const upTable = getTableById(id);
-                    if (!upTable) return null;
-                    return (
-                      <Card
-                        key={id}
-                        className="cursor-pointer hover:shadow-sm transition-all"
-                        onClick={() => onTableSelect(id)}
-                      >
-                        <CardContent className="p-2">
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">{upTable.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{upTable.dataset}</p>
-                            </div>
-                            <Badge variant={getLayerVariant(upTable.layer)} className="ml-2">
-                              {upTable.layer}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                {upstreamExpanded && (
+                  <div className="space-y-4">
+                    {Array.from(upstreamGroups.entries())
+                    .sort(([a], [b]) => a - b) // Sort by distance
+                    .map(([distance, tableIds]) => (
+                      <div key={`upstream-distance-${distance}`} className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {distance === 1 ? 'Direct connections' : `${distance} steps away`}
+                        </h4>
+                        <div className="space-y-2">
+                          {tableIds.map(id => {
+                            const upTable = getTableById(id);
+                            if (!upTable) return null;
+                            return (
+                              <Card
+                                key={id}
+                                className={`hover:shadow-sm transition-all ${
+                                  distance === 1 ? 'border-green-200' : 
+                                  distance === 2 ? 'border-yellow-200' : 
+                                  'border-orange-200'
+                                }`}
+                              >
+                                <CardContent className="p-2">
+                                  <div className="flex items-center justify-between">
+                                    <div 
+                                      className="min-w-0 flex-1 cursor-pointer"
+                                      onClick={() => onTableSelect(id)}
+                                    >
+                                      <p className="text-sm font-medium truncate">{upTable.name}</p>
+                                      <p className="text-xs text-muted-foreground truncate">{upTable.dataset}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs px-1.5 py-0 h-5 ${getDistanceBadgeColor(distance)}`}
+                                      >
+                                        {distance}
+                                      </Badge>
+                                      <Badge variant={getLayerVariant(upTable.layer)} className="ml-0">
+                                        {upTable.layer}
+                                      </Badge>
+                                      {onDisconnectUpstream && distance === 1 && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDisconnectUpstream(id, table.id);
+                                          }}
+                                          title="Remove upstream connection"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    {upstreamTables.size === 0 && (
+                      <p className="text-sm text-muted-foreground">No upstream tables</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
             {(downstreamTables.size > 0 || onConnectDownstream) && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold">
+                  <button 
+                    className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
+                    onClick={() => setDownstreamExpanded(!downstreamExpanded)}
+                  >
+                    {downstreamExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     Downstream tables ({downstreamTables.size})
-                  </h3>
+                  </button>
                   {onConnectDownstream && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -562,7 +670,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                               key={`downstream-${t.id}`}
                               onClick={() => {
                                 try {
-                                  console.log('TableDetails: Connect downstream table:', table.id, 'to', t.id);
                                   onConnectDownstream(table.id, t.id);
                                 } catch (error) {
                                   console.error('Error connecting downstream table:', error);
@@ -587,31 +694,75 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     </DropdownMenu>
                   )}
                 </div>
-                <div className="space-y-2">
-                  {Array.from(downstreamTables).map(id => {
-                    const downTable = getTableById(id);
-                    if (!downTable) return null;
-                    return (
-                      <Card
-                        key={id}
-                        className="cursor-pointer hover:shadow-sm transition-all"
-                        onClick={() => onTableSelect(id)}
-                      >
-                        <CardContent className="p-2">
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">{downTable.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{downTable.dataset}</p>
-                            </div>
-                            <Badge variant={getLayerVariant(downTable.layer)} className="ml-2">
-                              {downTable.layer}
-                            </Badge>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                {downstreamExpanded && (
+                  <div className="space-y-4">
+                    {Array.from(downstreamGroups.entries())
+                    .sort(([a], [b]) => a - b) // Sort by distance
+                    .map(([distance, tableIds]) => (
+                      <div key={`downstream-distance-${distance}`} className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {distance === 1 ? 'Direct connections' : `${distance} steps away`}
+                        </h4>
+                        <div className="space-y-2">
+                          {tableIds.map(id => {
+                            const downTable = getTableById(id);
+                            if (!downTable) return null;
+                            return (
+                              <Card
+                                key={id}
+                                className={`hover:shadow-sm transition-all ${
+                                  distance === 1 ? 'border-green-200' : 
+                                  distance === 2 ? 'border-yellow-200' : 
+                                  'border-orange-200'
+                                }`}
+                              >
+                                <CardContent className="p-2">
+                                  <div className="flex items-center justify-between">
+                                    <div 
+                                      className="min-w-0 flex-1 cursor-pointer"
+                                      onClick={() => onTableSelect(id)}
+                                    >
+                                      <p className="text-sm font-medium truncate">{downTable.name}</p>
+                                      <p className="text-xs text-muted-foreground truncate">{downTable.dataset}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-xs px-1.5 py-0 h-5 ${getDistanceBadgeColor(distance)}`}
+                                      >
+                                        {distance}
+                                      </Badge>
+                                      <Badge variant={getLayerVariant(downTable.layer)} className="ml-0">
+                                        {downTable.layer}
+                                      </Badge>
+                                      {onDisconnectDownstream && distance === 1 && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDisconnectDownstream(table.id, id);
+                                          }}
+                                          title="Remove downstream connection"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    {downstreamTables.size === 0 && (
+                      <p className="text-sm text-muted-foreground">No downstream tables</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -619,9 +770,13 @@ const TableDetails: React.FC<TableDetailsProps> = ({
             {onConnectDashboard && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold">
+                  <button 
+                    className="flex items-center gap-2 text-sm font-semibold hover:text-primary transition-colors"
+                    onClick={() => setDashboardsExpanded(!dashboardsExpanded)}
+                  >
+                    {dashboardsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     Connected dashboards
-                  </h3>
+                  </button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm" className="gap-1">
@@ -640,7 +795,6 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                             key={`dashboard-${d.id}`}
                             onClick={() => {
                               try {
-                                console.log('TableDetails: Connect table', table.id, 'to dashboard:', d.id);
                                 onConnectDashboard(table.id, d.id);
                               } catch (error) {
                                 console.error('Error connecting to dashboard:', error);
@@ -662,12 +816,53 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <div className="space-y-2">
-                  {/* TODO: Show connected dashboards once we have a utility to get them */}
-                  <p className="text-sm text-muted-foreground italic">
-                    Use the dropdown above to connect this table to a dashboard
-                  </p>
-                </div>
+                {dashboardsExpanded && (
+                  <div className="space-y-2">
+                    {connectedDashboards.size > 0 ? (
+                      Array.from(connectedDashboards).map(dashboardId => {
+                        const dashboard = getDashboardById(dashboardId);
+                        if (!dashboard) return null;
+                        return (
+                          <Card key={dashboardId} className="hover:shadow-sm transition-all">
+                            <CardContent className="p-2">
+                              <div className="flex items-center justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium truncate">{dashboard.name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {dashboard.businessArea || 'No business area'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="text-xs">
+                                    Dashboard
+                                  </Badge>
+                                  {onDisconnectDashboard && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 text-destructive hover:bg-destructive/10"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDisconnectDashboard(table.id, dashboardId);
+                                      }}
+                                      title="Remove dashboard connection"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No connected dashboards
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -678,7 +873,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
             )}
           </div>
         </ScrollArea>
-      </SheetContent>
+      </div>
 
       {/* Add Column Modal */}
       {areColumnsAvailable() && (
@@ -701,7 +896,7 @@ const TableDetails: React.FC<TableDetailsProps> = ({
           tableName={table.name}
         />
       )}
-    </Sheet>
+    </div>
   );
 };
 

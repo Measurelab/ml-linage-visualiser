@@ -27,12 +27,12 @@
     --ring: oklch(0.7879 0.1991 139.5227);
     --radius: 0.625rem;
     
-    /* Chart colors */
-    --chart-1: oklch(0.8710 0.1500 154.4490);
-    --chart-2: oklch(0.8650 0.1270 207.0780);
-    --chart-3: oklch(0.9050 0.1820 98.1110);
-    --chart-4: oklch(0.7690 0.1880 70.0800);
-    --chart-5: oklch(0.7400 0.2380 322.1600);
+    /* Chart colors - Layer differentiation */
+    --chart-1: oklch(0.6200 0.1800 260.0000); /* Deep Purple - Raw layer */
+    --chart-2: oklch(0.6800 0.1600 200.0000); /* Medium Blue - Inter layer */
+    --chart-3: oklch(0.7400 0.1700 140.0000); /* Measurelab Green - Target layer */
+    --chart-4: oklch(0.7200 0.1900 50.0000);  /* Golden Orange - Reporting layer */
+    --chart-5: oklch(0.6500 0.1500 300.0000); /* Magenta - Other/Dashboards */
     
     /* Sidebar */
     --sidebar: oklch(0.9851 0 0);
@@ -123,3 +123,14 @@
 .tooltip {
   z-index: 1000;
 }
+
+/* Helper classes for D3.js to access Measurelab theme colors */
+.chart-color-1 { color: var(--chart-1); }
+.chart-color-2 { color: var(--chart-2); }
+.chart-color-3 { color: var(--chart-3); }
+.chart-color-4 { color: var(--chart-4); }
+.chart-color-5 { color: var(--chart-5); }
+.primary-color { color: var(--primary); }
+.muted-foreground-color { color: var(--muted-foreground); }
+.accent-color { color: var(--accent); }
+.destructive-color { color: var(--destructive); }

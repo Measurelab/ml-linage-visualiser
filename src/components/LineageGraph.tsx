@@ -1,11 +1,23 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { GraphData, GraphNode, GraphLink } from '../types';
 import { getNodeColor } from '../utils/graphBuilder';
+import { Button } from '@/components/ui/button';
+
+// Helper function to get CSS variable color for D3
+const getCSSColor = (variableName: string, fallback: string = '#999'): string => {
+  if (typeof window !== 'undefined') {
+    const computedStyle = getComputedStyle(document.documentElement);
+    const color = computedStyle.getPropertyValue(variableName).trim();
+    return color || fallback;
+  }
+  return fallback;
+};
 
 interface LineageGraphProps {
   data: GraphData;
   onNodeClick?: (node: GraphNode) => void;
+  onFilterToLineage?: (node: GraphNode) => void;
   onNodeDelete?: (node: GraphNode) => void;
   onNodeAddUpstream?: (node: GraphNode) => void;
   onNodeAddDownstream?: (node: GraphNode) => void;
@@ -21,6 +33,7 @@ interface LineageGraphProps {
 const LineageGraph: React.FC<LineageGraphProps> = ({
   data,
   onNodeClick,
+  onFilterToLineage,
   onNodeDelete,
   onNodeAddUpstream,
   onNodeAddDownstream,
@@ -44,9 +57,9 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
 
   // Function to calculate node size based on connection count
   const getNodeRadius = (node: GraphNode): number => {
-    // Dashboard nodes get a static size
+    // Dashboard nodes get the largest size to make them most prominent
     if (node.nodeType === 'dashboard') {
-      return 15; // Fixed size for dashboards
+      return 25; // Larger than any table node (max table is 20)
     }
     
     // For table nodes, use connection-based sizing
@@ -76,30 +89,61 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     return Math.max(minRadius, Math.min(maxRadius, radius));
   };
 
-  // Function to center the view on a specific node
-  const centerOnNode = (nodeId: string) => {
+  // Function to center the view on a specific node or all visible nodes
+  const centerOnNode = useCallback((nodeId?: string) => {
     if (!svgRef.current || !zoomRef.current || !gRef.current) return;
     
     const svg = d3.select(svgRef.current);
-    const node = data.nodes.find(n => n.id === nodeId);
-    
-    if (!node || !node.x || !node.y) return;
-    
     const svgRect = svgRef.current.getBoundingClientRect();
     const centerX = svgRect.width / 2;
     const centerY = svgRect.height / 2;
     
-    const scale = 1.2; // Slight zoom in when focusing
-    const x = centerX - node.x * scale;
-    const y = centerY - node.y * scale;
-    
-    svg.transition()
-      .duration(750)
-      .call(
-        zoomRef.current.transform,
-        d3.zoomIdentity.translate(x, y).scale(scale)
+    if (nodeId) {
+      // Center on specific node
+      const node = data.nodes.find(n => n.id === nodeId);
+      if (!node || !node.x || !node.y) return;
+      
+      const scale = 1.2; // Slight zoom in when focusing
+      const x = centerX - node.x * scale;
+      const y = centerY - node.y * scale;
+      
+      svg.transition()
+        .duration(750)
+        .call(
+          zoomRef.current.transform,
+          d3.zoomIdentity.translate(x, y).scale(scale)
+        );
+    } else {
+      // Fit all visible nodes in view
+      const visibleNodes = data.nodes.filter(n => n.x !== undefined && n.y !== undefined);
+      if (visibleNodes.length === 0) return;
+      
+      const xExtent = d3.extent(visibleNodes, d => d.x!) as [number, number];
+      const yExtent = d3.extent(visibleNodes, d => d.y!) as [number, number];
+      
+      const width = xExtent[1] - xExtent[0];
+      const height = yExtent[1] - yExtent[0];
+      const midX = (xExtent[0] + xExtent[1]) / 2;
+      const midY = (yExtent[0] + yExtent[1]) / 2;
+      
+      // Calculate scale to fit all nodes with padding
+      const scale = Math.min(
+        svgRect.width * 0.8 / width,
+        svgRect.height * 0.8 / height,
+        1.2 // Max zoom
       );
-  };
+      
+      const x = centerX - midX * scale;
+      const y = centerY - midY * scale;
+      
+      svg.transition()
+        .duration(750)
+        .call(
+          zoomRef.current.transform,
+          d3.zoomIdentity.translate(x, y).scale(scale)
+        );
+    }
+  }, [data.nodes]);
 
   useEffect(() => {
     if (!svgRef.current || !data.nodes.length) return;
@@ -229,7 +273,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .selectAll('line')
       .data(data.links)
       .enter().append('line')
-      .attr('stroke', '#999')
+      .attr('stroke', getCSSColor('--muted-foreground', '#999'))
       .attr('stroke-opacity', 0.6)
       .attr('stroke-width', 1)
       .attr('marker-end', (d: any) => {
@@ -258,7 +302,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .attr('markerHeight', 8)
       .append('svg:path')
       .attr('d', 'M 0,-5 L 10,0 L 0,5')
-      .attr('fill', '#666')
+      .attr('fill', getCSSColor('--muted-foreground', '#666'))
       .attr('stroke', 'none');
 
     const node = g.append('g')
@@ -274,27 +318,71 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
     // Add different shapes for different node types
     node.each(function(d) {
       const nodeGroup = d3.select(this);
+      const isFocused = focusedNodeId === d.id;
+      const isSelected = selectedNode === d.id;
+      const isHighlighted = highlightedNodes.has(d.id);
+      
+      // Determine stroke and opacity based on focus/selection state
+      const getStroke = () => {
+        if (isFocused) return getCSSColor('--primary', '#2563eb'); // Primary for focused node
+        if (isSelected) return getCSSColor('--foreground', '#1f2937'); // Foreground for selected
+        if (isHighlighted) return getCSSColor('--destructive', '#ef4444'); // Destructive for highlighted
+        return getCSSColor('--background', '#fff'); // Background default
+      };
+      
+      const getStrokeWidth = () => {
+        if (isFocused) return 4; // Thickest for focused
+        if (isSelected) return 3;
+        if (isHighlighted) return 2;
+        return 1.5;
+      };
+      
+      const getOpacity = () => {
+        // When a node is focused, show full opacity for focused node
+        if (focusedNodeId) return isFocused ? 1 : 0.7;
+        // Regular highlighting behavior
+        if (highlightedNodes.size === 0) return 1;
+        return isHighlighted ? 1 : 0.3;
+      };
       
       if (d.nodeType === 'dashboard') {
-        // Rectangle for dashboards
-        nodeGroup.append('rect')
-          .attr('width', getNodeRadius(d) * 2)
-          .attr('height', getNodeRadius(d) * 1.5)
-          .attr('x', -getNodeRadius(d))
-          .attr('y', -getNodeRadius(d) * 0.75)
-          .attr('rx', 4) // rounded corners
+        const radius = getNodeRadius(d);
+        // Dashboard icon using chart/bar chart symbol
+        nodeGroup.append('circle')
+          .attr('r', radius)
           .attr('fill', getNodeColor(d))
-          .attr('stroke', selectedNode === d.id ? '#1f2937' : highlightedNodes.has(d.id) ? '#ef4444' : '#fff')
-          .attr('stroke-width', selectedNode === d.id ? 3 : highlightedNodes.has(d.id) ? 2 : 1.5)
-          .attr('opacity', highlightedNodes.size === 0 ? 1 : highlightedNodes.has(d.id) ? 1 : 0.3);
+          .attr('stroke', getStroke())
+          .attr('stroke-width', getStrokeWidth())
+          .attr('opacity', getOpacity());
+          
+        // Add chart bars icon inside the circle
+        const iconScale = radius * 0.06; // Scale bars to node size
+        nodeGroup.append('path')
+          .attr('d', `M${-6 * iconScale},${4 * iconScale} h${3 * iconScale} v${-8 * iconScale} h${-3 * iconScale} z
+                     M${-1 * iconScale},${4 * iconScale} h${3 * iconScale} v${-6 * iconScale} h${-3 * iconScale} z
+                     M${4 * iconScale},${4 * iconScale} h${3 * iconScale} v${-10 * iconScale} h${-3 * iconScale} z`)
+          .attr('fill', 'white')
+          .attr('opacity', 0.9)
+          .attr('pointer-events', 'none');
       } else {
         // Circle for tables
         nodeGroup.append('circle')
           .attr('r', getNodeRadius(d))
           .attr('fill', getNodeColor(d))
-          .attr('stroke', selectedNode === d.id ? '#1f2937' : highlightedNodes.has(d.id) ? '#ef4444' : '#fff')
-          .attr('stroke-width', selectedNode === d.id ? 3 : highlightedNodes.has(d.id) ? 2 : 1.5)
-          .attr('opacity', highlightedNodes.size === 0 ? 1 : highlightedNodes.has(d.id) ? 1 : 0.3);
+          .attr('stroke', getStroke())
+          .attr('stroke-width', getStrokeWidth())
+          .attr('opacity', getOpacity());
+      }
+      
+      // Add a subtle glow effect for the focused node
+      if (isFocused) {
+        const glowElement = nodeGroup.insert('circle', ':first-child');
+        glowElement
+          .attr('r', getNodeRadius(d) + 4)
+          .attr('fill', 'none')
+          .attr('stroke', getCSSColor('--primary', '#2563eb'))
+          .attr('stroke-width', 2)
+          .attr('opacity', 0.3);
       }
     });
 
@@ -316,19 +404,20 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .attr('y', -15)
       .attr('text-anchor', 'middle')
       .attr('font-size', '10px')
-      .attr('fill', '#1f2937')
+      .attr('fill', getCSSColor('--foreground', '#1f2937'))
       .attr('pointer-events', 'none');
 
     const tooltip = d3.select('body').append('div')
       .attr('class', 'tooltip')
       .style('position', 'absolute')
       .style('visibility', 'hidden')
-      .style('background-color', 'white')
-      .style('border', '1px solid #d1d5db')
+      .style('background-color', getCSSColor('--popover', 'white'))
+      .style('border', `1px solid ${getCSSColor('--border', '#d1d5db')}`)
       .style('border-radius', '4px')
       .style('padding', '8px')
       .style('font-size', '12px')
-      .style('box-shadow', '0 2px 4px rgba(0,0,0,0.1)');
+      .style('box-shadow', '0 2px 4px rgba(0,0,0,0.1)')
+      .style('color', getCSSColor('--popover-foreground', '#000'));
 
     node.on('mouseover', function(_event, d) {
       const tooltipContent = d.nodeType === 'dashboard' 
@@ -475,16 +564,6 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
             const menuX = event.clientX;
             const menuY = event.clientY;
             
-            console.log('Menu positioning:', {
-              clientX: event.clientX,
-              clientY: event.clientY,
-              pageX: event.pageX,
-              pageY: event.pageY,
-              scrollX: window.scrollX,
-              scrollY: window.scrollY,
-              menuX,
-              menuY
-            });
             
             // Show canvas context menu at the correct position
             setCanvasContextMenu({
@@ -502,19 +581,25 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       simulation.stop();
       tooltip.remove();
     };
-  }, [data, highlightedNodes, selectedNode, onNodeClick, onNodeDelete, onNodeAddUpstream, onNodeAddDownstream, width, height]);
+  }, [data, highlightedNodes, selectedNode, focusedNodeId, onNodeClick, onNodeDelete, onNodeAddUpstream, onNodeAddDownstream, width, height]);
 
-  // Handle focusing on a specific node when focusedNodeId changes
+  // Handle focusing when filtering changes
   useEffect(() => {
-    if (focusedNodeId) {
+    if (focusedNodeId || data.nodes.length < 50) {
       // Small delay to ensure the simulation has positioned the nodes
       const timer = setTimeout(() => {
-        centerOnNode(focusedNodeId);
+        if (focusedNodeId) {
+          // When filtering to a specific node's lineage, center on that node
+          centerOnNode(focusedNodeId);
+        } else if (data.nodes.length < 50) {
+          // When filtered to a small set of nodes, fit them all in view
+          centerOnNode(); // No nodeId = fit all visible nodes
+        }
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [focusedNodeId]);
+  }, [focusedNodeId, data.nodes.length, centerOnNode]);
 
 
   // Handle context menu click outside
@@ -605,21 +690,28 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       />
       
       {/* Layout control */}
-      <div className="absolute top-4 left-20 z-20">
-        <button
-          className="px-3 py-1 text-xs rounded-md shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-          onClick={reorganizeLayout}
-          title="Reorganize the layout of all nodes"
-        >
-          {isLayoutFrozen ? 'Reorganize layout' : 'Organizing...'}
-        </button>
+      <div className="absolute top-16 left-4 z-20">
+        <div className="bg-card border rounded-lg p-1 shadow-sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={reorganizeLayout}
+            title="Reorganize the layout of all nodes"
+            className="text-xs h-8 px-3"
+            disabled={!isLayoutFrozen}
+          >
+            {isLayoutFrozen ? 'Reorganize layout' : 'Organizing...'}
+          </Button>
+        </div>
       </div>
       
       {/* Layout status indicator */}
       {!isLayoutFrozen && (
-        <div className="absolute top-4 left-40 z-20">
-          <div className="px-2 py-1 text-xs rounded-md bg-blue-100 text-blue-800 border">
-            Layout organizing...
+        <div className="absolute top-16 left-4 z-20">
+          <div className="bg-card border rounded-lg p-1 shadow-sm">
+            <div className="text-xs h-8 px-3 flex items-center text-muted-foreground font-semibold">
+              Layout organizing...
+            </div>
           </div>
         </div>
       )}
@@ -641,6 +733,17 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
           >
             View details
           </button>
+          {onFilterToLineage && (
+            <button
+              className="w-full px-4 py-2 text-sm text-left hover:bg-muted flex items-center gap-2"
+              onClick={() => {
+                onFilterToLineage(contextMenu.node);
+                setContextMenu(null);
+              }}
+            >
+              Filter to lineage
+            </button>
+          )}
           {onNodeDelete && (
             <>
               <div className="border-t my-1" />

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Measurelab Color Test</title>
+  <link rel="stylesheet" href="./dist/assets/index-Bo37g8zn.css">
+  <style>
+    body { padding: 20px; font-family: 'Poppins', sans-serif; }
+    .color-box { 
+      width: 100px; 
+      height: 50px; 
+      margin: 5px; 
+      border: 1px solid #ccc; 
+      display: inline-block;
+      text-align: center;
+      line-height: 50px;
+      font-size: 12px;
+    }
+    .theme-toggle { margin-bottom: 20px; }
+    .color-section { margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="theme-toggle">
+    <button onclick="toggleTheme()">Toggle Dark/Light Mode</button>
+  </div>
+  
+  <div class="color-section">
+    <h3>Chart Colors (Layer Colors)</h3>
+    <div class="chart-color-1 color-box">Raw</div>
+    <div class="chart-color-2 color-box">Inter</div>
+    <div class="chart-color-4 color-box">Target</div>
+    <div class="chart-color-5 color-box">Reporting</div>
+  </div>
+  
+  <div class="color-section">
+    <h3>Theme Colors</h3>
+    <div class="primary-color color-box">Primary</div>
+    <div class="muted-foreground-color color-box">Muted</div>
+    <div class="destructive-color color-box">Destructive</div>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      logColors();
+    }
+    
+    function logColors() {
+      const style = getComputedStyle(document.documentElement);
+      const colors = {
+        'Chart 1 (Raw)': style.getPropertyValue('--chart-1'),
+        'Chart 2 (Inter)': style.getPropertyValue('--chart-2'),
+        'Chart 4 (Target)': style.getPropertyValue('--chart-4'),
+        'Chart 5 (Reporting)': style.getPropertyValue('--chart-5'),
+        'Primary (Dashboards)': style.getPropertyValue('--primary'),
+        'Muted Foreground': style.getPropertyValue('--muted-foreground')
+      };
+      
+      console.log('Current theme colors:', colors);
+    }
+    
+    // Log initial colors
+    logColors();
+    
+    // Apply colors to boxes
+    document.querySelectorAll('.color-box').forEach(box => {
+      const className = box.classList[0];
+      const computedStyle = getComputedStyle(box);
+      const color = computedStyle.color;
+      box.style.backgroundColor = color;
+      box.style.color = color === 'rgb(255, 255, 255)' ? '#000' : '#fff';
+    });
+  </script>
+</body>
+</html>
