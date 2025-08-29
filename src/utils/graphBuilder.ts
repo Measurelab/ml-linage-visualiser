@@ -22,8 +22,6 @@ export const buildGraphData = (
   
   // Enhanced label filtering: if labels are selected, completely replace filtering logic
   if (filters?.selectedLabels && filters.selectedLabels.length > 0 && nodeLabelsMap) {
-    // console.log('🔍 Enhanced label filtering activated - replacing normal filtering');
-    // console.log('Selected labels:', filters.selectedLabels);
     
     // Create a complete graph with ALL nodes and links for downstream traversal
     const allTables = Array.from(parsedData.tables.values()).map(table => ({ ...table, nodeType: 'table' as const }));
@@ -45,7 +43,6 @@ export const buildGraphData = (
       nodes: [...allTables, ...allDashboards], 
       links: allLinks 
     };
-    // console.log('Full graph for traversal - nodes:', fullGraphData.nodes.length, 'links:', fullGraphData.links.length);
     
     // Clear existing filtered nodes and start fresh for label-based filtering
     filteredTableNodes.clear();
@@ -65,18 +62,14 @@ export const buildGraphData = (
       
       if (hasSelectedLabel) {
         labeledNodeIds.add(nodeId);
-        // console.log(`📍 Found labeled node: ${nodeId} with labels:`, nodeLabels);
         
         // Add all downstream nodes using the full graph
         const downstreamNodes = getAllDownstreamNodes(nodeId, fullGraphData);
-        // console.log(`⬇️  Downstream nodes for ${nodeId}:`, downstreamNodes);
         downstreamNodes.forEach(downstreamId => {
           labeledNodeIds.add(downstreamId);
         });
       }
     });
-    
-    // console.log(`📊 Total nodes to include (labeled + downstream): ${labeledNodeIds.size}`);
     
     // Add all identified nodes to our filtered sets, applying other filters as well
     labeledNodeIds.forEach(nodeId => {
@@ -116,17 +109,13 @@ export const buildGraphData = (
           const graphNode: GraphNode = { ...table, nodeType: 'table' as const };
           filteredTableNodes.set(nodeId, graphNode);
           tableIds.add(nodeId);
-          // console.log(`➕ Added table: ${nodeId}`);
         }
       } else if (dashboard) {
         const graphNode: GraphNode = { ...dashboard, nodeType: 'dashboard' as const };
         dashboardNodes.set(nodeId, graphNode);
         dashboardIds.add(nodeId);
-        // console.log(`➕ Added dashboard: ${nodeId}`);
       }
     });
-    
-    // console.log('🎯 Final filtered nodes after label filtering:', filteredTableNodes.size + dashboardNodes.size);
   }
   
   // Combine all nodes
@@ -161,12 +150,6 @@ export const buildGraphData = (
   const allLinks = [...tableLinks, ...dashboardLinks];
   const nodes = Array.from(allNodes.values());
   
-  // console.log(`🔗 Link construction summary:`);
-  // console.log(`   Table links: ${tableLinks.length}`);
-  // console.log(`   Dashboard links: ${dashboardLinks.length}`);
-  // console.log(`   Total links: ${allLinks.length}`);
-  // console.log(`   Total nodes: ${nodes.length}`);
-  
   // Calculate connection count for each node
   const connectionCounts = new Map<string, number>();
   
@@ -199,7 +182,7 @@ export const buildGraphData = (
 const filterNodes = (
   parsedData: ParsedData,
   filters?: Partial<FilterOptions>,
-  nodeLabelsMap?: Map<string, string[]>
+  _nodeLabelsMap?: Map<string, string[]>
 ): Map<string, GraphNode> => {
   const filteredNodes = new Map<string, GraphNode>();
   const { tables } = parsedData;
@@ -302,8 +285,7 @@ const filterNodes = (
         include = include && tablesConnectedToSelectedDashboards.has(table.id);
       }
 
-      // NOTE: Label filtering is now handled in the enhanced filtering section
-      // to properly include downstream nodes. Don't filter by labels here.
+      // Label filtering is handled in the enhanced filtering section
     }
     
     if (include) {
