@@ -14,6 +14,7 @@ import DashboardDetails from './components/DashboardDetails';
 import { PortalProvider, usePortal } from './contexts/PortalContext';
 import { loadAndParseData } from './utils/dataParser';
 import { loadDataFromSupabaseProject, hasProjectData, deleteTable, createTable, createLineage, createDashboard, createDashboardTable, deleteDashboard, deleteLineage, deleteDashboardTable } from './services/lineageData';
+import { getProjectLabels, areNodeLabelsAvailable } from './services/nodeLabels';
 import { getAllProjects, createProject } from './services/projects';
 import { isSupabaseEnabled } from './services/supabase';
 import { buildGraphData, getUpstreamTables, getDownstreamTables, getTablesByDashboard } from './utils/graphBuilder';
@@ -41,6 +42,7 @@ function AppContent() {
     showScheduledOnly: false,
     searchTerm: '',
     selectedDashboards: [],
+    selectedLabels: [],
     focusedTableId: undefined,
     focusedDashboardId: undefined
   });
@@ -53,6 +55,7 @@ function AppContent() {
   const [dashboardConnectionNode, setDashboardConnectionNode] = useState<GraphNode | null>(null);
   const [canvasClickPosition, setCanvasClickPosition] = useState<{ x: number; y: number } | null>(null);
   const [layoutMode, setLayoutMode] = useState<'force' | 'dag'>('force');
+  const [nodeLabels, setNodeLabels] = useState<Map<string, string[]>>(new Map());
 
   useEffect(() => {
     const checkAuthentication = async () => {
@@ -267,8 +270,19 @@ function AppContent() {
 
   const graphData = useMemo(() => {
     if (!parsedData) return { nodes: [], links: [] };
-    return buildGraphData(parsedData, filters);
-  }, [parsedData, filters]);
+    const data = buildGraphData(parsedData, filters, nodeLabels);
+    
+    // Apply stored labels to nodes
+    const nodesWithLabels = data.nodes.map(node => ({
+      ...node,
+      labels: nodeLabels.get(node.id) || []
+    }));
+    
+    return {
+      ...data,
+      nodes: nodesWithLabels
+    };
+  }, [parsedData, filters, nodeLabels]);
 
   const handleNodeClick = (node: GraphNode) => {
     if (!parsedData) return;
@@ -374,6 +388,37 @@ function AppContent() {
       }));
     }
   };
+
+  const handleNodeLabelUpdate = (nodeId: string, labels: string[]) => {
+    setNodeLabels(prev => {
+      const newMap = new Map(prev);
+      if (labels.length === 0) {
+        newMap.delete(nodeId);
+      } else {
+        newMap.set(nodeId, labels);
+      }
+      return newMap;
+    });
+  };
+
+  // Load node labels when project changes
+  useEffect(() => {
+    const loadNodeLabels = async () => {
+      if (areNodeLabelsAvailable() && activeProject?.id && parsedData) {
+        try {
+          const labels = await getProjectLabels(activeProject.id);
+          setNodeLabels(labels);
+        } catch (error) {
+          console.error('Error loading node labels:', error);
+          setNodeLabels(new Map());
+        }
+      } else {
+        setNodeLabels(new Map());
+      }
+    };
+
+    loadNodeLabels();
+  }, [activeProject?.id, parsedData]);
 
   const handleLogin = () => {
     setIsAuthenticated(true);
@@ -1035,6 +1080,7 @@ function AppContent() {
               filters={filters}
               onFiltersChange={setFilters}
               onTableHighlight={setHighlightedNodes}
+              activeProjectId={activeProject?.id}
             />
           </div>
 
@@ -1116,6 +1162,7 @@ function AppContent() {
                 onCanvasCreateDashboard={isSupabaseEnabled && activeProject ? handleCanvasCreateDashboard : undefined}
                 highlightedNodes={highlightedNodes}
                 focusedNodeId={filters.focusedTableId || filters.focusedDashboardId}
+                connectedLabelsMap={nodeLabels}
               />
             ) : (
               <DAGLineageGraph
@@ -1167,6 +1214,7 @@ function AppContent() {
                             showScheduledOnly: false,
                             searchTerm: '',
                             selectedDashboards: [],
+                            selectedLabels: [],
                             focusedTableId: undefined,
                             focusedDashboardId: undefined
                           });
@@ -1199,6 +1247,8 @@ function AppContent() {
           onDisconnectDashboard={isSupabaseEnabled && activeProject ? handleDisconnectDashboard : undefined}
           onTableUpdate={handleTableUpdate}
           activeProjectId={activeProject?.id}
+          onNodeLabelUpdate={handleNodeLabelUpdate}
+          currentNode={selectedTable ? graphData.nodes.find(n => n.id === selectedTable.id) : undefined}
         />
 
         <DashboardDetails

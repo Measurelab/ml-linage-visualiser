@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, ParsedData, Column, CreateColumnRequest } from '@/types';
+import { Table, ParsedData, Column, CreateColumnRequest, GraphNode } from '@/types';
 import { getUpstreamTables, getDownstreamTables, getUpstreamTablesWithDistance, getDownstreamTablesWithDistance } from '@/utils/graphBuilder';
 import { getTableColumns, createColumn, deleteColumn, createBulkColumns, areColumnsAvailable } from '@/services/columns';
+import { getProjectUniqueLabels, setNodeLabels as setNodeLabelsDB, areNodeLabelsAvailable } from '@/services/nodeLabels';
 import { updateTable } from '@/services/lineageData';
-import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { ExternalLink, Clock, Plus, Database, Upload, Edit, Check, X, ChevronDown, ChevronUp, Trash2, Tag } from 'lucide-react';
 import ColumnList from './ColumnList';
 import AddColumnModal from './AddColumnModal';
 import UploadSchemaModal from './UploadSchemaModal';
@@ -43,6 +44,8 @@ interface TableDetailsProps {
   onDisconnectDashboard?: (tableId: string, dashboardId: string) => void;
   onTableUpdate?: () => void;
   activeProjectId?: string;
+  onNodeLabelUpdate?: (nodeId: string, labels: string[]) => void;
+  currentNode?: GraphNode;
 }
 
 const TableDetails: React.FC<TableDetailsProps> = ({
@@ -58,7 +61,9 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   onDisconnectDownstream,
   onDisconnectDashboard,
   onTableUpdate,
-  activeProjectId
+  activeProjectId,
+  onNodeLabelUpdate,
+  currentNode
 }) => {
   const [columns, setColumns] = useState<Column[]>([]);
   const [columnsLoading, setColumnsLoading] = useState(false);
@@ -70,6 +75,10 @@ const TableDetails: React.FC<TableDetailsProps> = ({
   const [upstreamExpanded, setUpstreamExpanded] = useState(false);
   const [downstreamExpanded, setDownstreamExpanded] = useState(false);
   const [dashboardsExpanded, setDashboardsExpanded] = useState(false);
+  const [labelInput, setLabelInput] = useState('');
+  const [nodeLabels, setNodeLabels] = useState<string[]>([]);
+  const [availableLabels, setAvailableLabels] = useState<string[]>([]);
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
 
   // Load columns when table changes
   useEffect(() => {
@@ -109,6 +118,31 @@ const TableDetails: React.FC<TableDetailsProps> = ({
       });
     }
   }, [table]);
+
+  // Initialize labels from current node
+  useEffect(() => {
+    if (currentNode && currentNode.labels) {
+      setNodeLabels([...currentNode.labels]);
+    } else {
+      setNodeLabels([]);
+    }
+  }, [currentNode]);
+
+  // Load available labels from the project
+  useEffect(() => {
+    const loadAvailableLabels = async () => {
+      if (areNodeLabelsAvailable() && activeProjectId) {
+        try {
+          const uniqueLabels = await getProjectUniqueLabels(activeProjectId);
+          setAvailableLabels(uniqueLabels);
+        } catch (error) {
+          console.error('Error loading available labels:', error);
+        }
+      }
+    };
+
+    loadAvailableLabels();
+  }, [activeProjectId]);
 
   if (!table) return null;
 
@@ -252,6 +286,78 @@ const TableDetails: React.FC<TableDetailsProps> = ({
     } catch (error) {
       console.error('Error updating table:', error);
       alert('Failed to update table. Please try again.');
+    }
+  };
+
+  const handleAddLabel = async (labelToAdd?: string) => {
+    const trimmedLabel = (labelToAdd || labelInput).trim();
+    if (trimmedLabel && !nodeLabels.includes(trimmedLabel)) {
+      const newLabels = [...nodeLabels, trimmedLabel];
+      setNodeLabels(newLabels);
+      setLabelInput('');
+      setShowLabelDropdown(false);
+      
+      // Save to database if available
+      if (areNodeLabelsAvailable() && activeProjectId && table) {
+        try {
+          await setNodeLabelsDB(
+            activeProjectId, 
+            table.id, 
+            currentNode?.nodeType === 'dashboard' ? 'dashboard' : 'table',
+            newLabels
+          );
+          
+          // Refresh available labels
+          const uniqueLabels = await getProjectUniqueLabels(activeProjectId);
+          setAvailableLabels(uniqueLabels);
+        } catch (error) {
+          console.error('Error saving label to database:', error);
+          // Revert the optimistic update
+          setNodeLabels(nodeLabels);
+        }
+      }
+      
+      // Update parent component
+      if (onNodeLabelUpdate && table) {
+        onNodeLabelUpdate(table.id, newLabels);
+      }
+    }
+  };
+
+  const handleRemoveLabel = async (labelToRemove: string) => {
+    const newLabels = nodeLabels.filter(label => label !== labelToRemove);
+    setNodeLabels(newLabels);
+    
+    // Save to database if available
+    if (areNodeLabelsAvailable() && activeProjectId && table) {
+      try {
+        await setNodeLabelsDB(
+          activeProjectId, 
+          table.id, 
+          currentNode?.nodeType === 'dashboard' ? 'dashboard' : 'table',
+          newLabels
+        );
+        
+        // Refresh available labels
+        const uniqueLabels = await getProjectUniqueLabels(activeProjectId);
+        setAvailableLabels(uniqueLabels);
+      } catch (error) {
+        console.error('Error removing label from database:', error);
+        // Revert the optimistic update
+        setNodeLabels([...nodeLabels]);
+      }
+    }
+    
+    // Update parent component
+    if (onNodeLabelUpdate && table) {
+      onNodeLabelUpdate(table.id, newLabels);
+    }
+  };
+
+  const handleLabelInputKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddLabel();
     }
   };
 
@@ -477,6 +583,101 @@ const TableDetails: React.FC<TableDetailsProps> = ({
                 )}
               </div>
             )}
+
+            {/* Labels Section */}
+            <div>
+              <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+                <Tag className="h-4 w-4" />
+                Labels ({nodeLabels.length})
+              </h3>
+              <div className="space-y-3">
+                {/* Existing Labels */}
+                {nodeLabels.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {nodeLabels.map((label, index) => (
+                      <Badge
+                        key={`${label}-${index}`}
+                        variant="secondary"
+                        className="flex items-center gap-1 px-2 py-1"
+                      >
+                        {label}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-3 w-3 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => handleRemoveLabel(label)}
+                          title={`Remove label "${label}"`}
+                        >
+                          <X className="h-2 w-2" />
+                        </Button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Add Label Input */}
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add new label..."
+                      value={labelInput}
+                      onChange={(e) => setLabelInput(e.target.value)}
+                      onKeyPress={handleLabelInputKeyPress}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={() => handleAddLabel()}
+                      size="sm"
+                      disabled={!labelInput.trim() || nodeLabels.includes(labelInput.trim())}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  
+                  {/* Existing Labels Dropdown */}
+                  {availableLabels.length > 0 && (
+                    <div className="relative">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                        className="w-full justify-between text-xs h-8"
+                      >
+                        Choose from existing labels ({availableLabels.length})
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                      
+                      {showLabelDropdown && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-card border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                          {availableLabels
+                            .filter(label => !nodeLabels.includes(label))
+                            .map((label, index) => (
+                              <button
+                                key={`available-${label}-${index}`}
+                                onClick={() => handleAddLabel(label)}
+                                className="w-full px-3 py-2 text-left text-xs hover:bg-muted transition-colors"
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          {availableLabels.filter(label => !nodeLabels.includes(label)).length === 0 && (
+                            <div className="px-3 py-2 text-xs text-muted-foreground">
+                              All available labels already added
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {nodeLabels.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Add labels to categorize and organize this {currentNode?.nodeType === 'dashboard' ? 'dashboard' : 'table'}
+                  </p>
+                )}
+              </div>
+            </div>
 
             {/* Columns Section */}
             {areColumnsAvailable() && !columnsError && (

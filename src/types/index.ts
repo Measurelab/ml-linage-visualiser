@@ -55,6 +55,7 @@ export interface TableGraphNode extends Table {
   fx?: number;
   fy?: number;
   connectionCount?: number;
+  labels?: string[];
 }
 
 export interface DashboardGraphNode extends Dashboard {
@@ -64,6 +65,7 @@ export interface DashboardGraphNode extends Dashboard {
   fx?: number;
   fy?: number;
   connectionCount?: number;
+  labels?: string[];
 }
 
 export type GraphNode = TableGraphNode | DashboardGraphNode;
@@ -92,6 +94,7 @@ export interface FilterOptions {
   showScheduledOnly: boolean;
   searchTerm: string;
   selectedDashboards: string[];
+  selectedLabels: string[];
   focusedTableId?: string;
   focusedDashboardId?: string;
 }

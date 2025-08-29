@@ -7,17 +7,127 @@ import {
 
 export const buildGraphData = (
   parsedData: ParsedData,
-  filters?: Partial<FilterOptions>
+  filters?: Partial<FilterOptions>,
+  nodeLabelsMap?: Map<string, string[]>
 ): GraphData => {
   const { lineages, dashboardTables } = parsedData;
   
   // Get filtered table nodes
-  const filteredTableNodes = filterNodes(parsedData, filters);
+  const filteredTableNodes = filterNodes(parsedData, filters, nodeLabelsMap);
   const tableIds = new Set(Array.from(filteredTableNodes.values()).map(n => n.id));
   
   // Get dashboard nodes (all dashboards for now - could add filtering later)
-  const dashboardNodes = getDashboardNodes(parsedData, filters);
+  const dashboardNodes = getDashboardNodes(parsedData, filters, nodeLabelsMap);
   const dashboardIds = new Set(Array.from(dashboardNodes.values()).map(n => n.id));
+  
+  // Enhanced label filtering: if labels are selected, completely replace filtering logic
+  if (filters?.selectedLabels && filters.selectedLabels.length > 0 && nodeLabelsMap) {
+    // console.log('🔍 Enhanced label filtering activated - replacing normal filtering');
+    // console.log('Selected labels:', filters.selectedLabels);
+    
+    // Create a complete graph with ALL nodes and links for downstream traversal
+    const allTables = Array.from(parsedData.tables.values()).map(table => ({ ...table, nodeType: 'table' as const }));
+    const allDashboards = Array.from(parsedData.dashboards.values()).map(dashboard => ({ ...dashboard, nodeType: 'dashboard' as const }));
+    const allLinks = [
+      // All table-to-table connections
+      ...lineages.map(lineage => ({
+        source: lineage.sourceTableId,
+        target: lineage.targetTableId
+      })),
+      // All table-to-dashboard connections
+      ...dashboardTables.map(dt => ({
+        source: dt.tableId,
+        target: dt.dashboardId
+      }))
+    ];
+    
+    const fullGraphData: GraphData = { 
+      nodes: [...allTables, ...allDashboards], 
+      links: allLinks 
+    };
+    // console.log('Full graph for traversal - nodes:', fullGraphData.nodes.length, 'links:', fullGraphData.links.length);
+    
+    // Clear existing filtered nodes and start fresh for label-based filtering
+    filteredTableNodes.clear();
+    dashboardNodes.clear();
+    tableIds.clear();
+    dashboardIds.clear();
+    
+    // Find all nodes that have the selected labels
+    const labeledNodeIds = new Set<string>();
+    const allNodeIds = [...Array.from(parsedData.tables.keys()), ...Array.from(parsedData.dashboards.keys())];
+    
+    allNodeIds.forEach(nodeId => {
+      const nodeLabels = nodeLabelsMap.get(nodeId) || [];
+      const hasSelectedLabel = filters.selectedLabels!.some(selectedLabel => 
+        nodeLabels.includes(selectedLabel)
+      );
+      
+      if (hasSelectedLabel) {
+        labeledNodeIds.add(nodeId);
+        // console.log(`📍 Found labeled node: ${nodeId} with labels:`, nodeLabels);
+        
+        // Add all downstream nodes using the full graph
+        const downstreamNodes = getAllDownstreamNodes(nodeId, fullGraphData);
+        // console.log(`⬇️  Downstream nodes for ${nodeId}:`, downstreamNodes);
+        downstreamNodes.forEach(downstreamId => {
+          labeledNodeIds.add(downstreamId);
+        });
+      }
+    });
+    
+    // console.log(`📊 Total nodes to include (labeled + downstream): ${labeledNodeIds.size}`);
+    
+    // Add all identified nodes to our filtered sets, applying other filters as well
+    labeledNodeIds.forEach(nodeId => {
+      const table = parsedData.tables.get(nodeId);
+      const dashboard = parsedData.dashboards.get(nodeId);
+      
+      if (table) {
+        // Apply other filters to tables (but not label filters)
+        let includeTable = true;
+        
+        if (filters.datasets && filters.datasets.length > 0) {
+          includeTable = includeTable && filters.datasets.includes(table.dataset);
+        }
+        
+        if (filters.layers && filters.layers.length > 0) {
+          includeTable = includeTable && filters.layers.includes(table.layer);
+        }
+        
+        if (filters.tableTypes && filters.tableTypes.length > 0) {
+          includeTable = includeTable && filters.tableTypes.includes(table.tableType);
+        }
+        
+        if (filters.showScheduledOnly) {
+          includeTable = includeTable && table.isScheduledQuery;
+        }
+        
+        if (filters.searchTerm) {
+          const searchLower = filters.searchTerm.toLowerCase();
+          includeTable = includeTable && (
+            table.name.toLowerCase().includes(searchLower) ||
+            table.id.toLowerCase().includes(searchLower) ||
+            table.dataset.toLowerCase().includes(searchLower)
+          );
+        }
+        
+        if (includeTable) {
+          const graphNode: GraphNode = { ...table, nodeType: 'table' as const };
+          filteredTableNodes.set(nodeId, graphNode);
+          tableIds.add(nodeId);
+          // console.log(`➕ Added table: ${nodeId}`);
+        }
+      } else if (dashboard) {
+        const graphNode: GraphNode = { ...dashboard, nodeType: 'dashboard' as const };
+        dashboardNodes.set(nodeId, graphNode);
+        dashboardIds.add(nodeId);
+        // console.log(`➕ Added dashboard: ${nodeId}`);
+      }
+    });
+    
+    // console.log('🎯 Final filtered nodes after label filtering:', filteredTableNodes.size + dashboardNodes.size);
+  }
   
   // Combine all nodes
   const allNodes = new Map([...filteredTableNodes, ...dashboardNodes]);
@@ -51,6 +161,12 @@ export const buildGraphData = (
   const allLinks = [...tableLinks, ...dashboardLinks];
   const nodes = Array.from(allNodes.values());
   
+  // console.log(`🔗 Link construction summary:`);
+  // console.log(`   Table links: ${tableLinks.length}`);
+  // console.log(`   Dashboard links: ${dashboardLinks.length}`);
+  // console.log(`   Total links: ${allLinks.length}`);
+  // console.log(`   Total nodes: ${nodes.length}`);
+  
   // Calculate connection count for each node
   const connectionCounts = new Map<string, number>();
   
@@ -82,7 +198,8 @@ export const buildGraphData = (
 
 const filterNodes = (
   parsedData: ParsedData,
-  filters?: Partial<FilterOptions>
+  filters?: Partial<FilterOptions>,
+  nodeLabelsMap?: Map<string, string[]>
 ): Map<string, GraphNode> => {
   const filteredNodes = new Map<string, GraphNode>();
   const { tables } = parsedData;
@@ -184,6 +301,9 @@ const filterNodes = (
         });
         include = include && tablesConnectedToSelectedDashboards.has(table.id);
       }
+
+      // NOTE: Label filtering is now handled in the enhanced filtering section
+      // to properly include downstream nodes. Don't filter by labels here.
     }
     
     if (include) {
@@ -205,7 +325,8 @@ const filterNodes = (
 
 const getDashboardNodes = (
   parsedData: ParsedData,
-  filters?: Partial<FilterOptions>
+  filters?: Partial<FilterOptions>,
+  nodeLabelsMap?: Map<string, string[]>
 ): Map<string, GraphNode> => {
   const dashboardNodes = new Map<string, GraphNode>();
   const { dashboards, dashboardTables } = parsedData;
@@ -283,6 +404,15 @@ const getDashboardNodes = (
       // If filtering by selected dashboards, only show those dashboards
       if (filters.selectedDashboards && filters.selectedDashboards.length > 0) {
         include = include && filters.selectedDashboards.includes(dashboard.id);
+      }
+
+      // Filter by selected labels - show only dashboards that have at least one of the selected labels
+      if (filters.selectedLabels && filters.selectedLabels.length > 0 && nodeLabelsMap) {
+        const nodeLabels = nodeLabelsMap.get(dashboard.id) || [];
+        const hasSelectedLabel = filters.selectedLabels.some(selectedLabel => 
+          nodeLabels.includes(selectedLabel)
+        );
+        include = include && hasSelectedLabel;
       }
     }
     
@@ -516,4 +646,64 @@ export const getTableTypeIcon = (type: string): string => {
     default:
       return 'M7 2a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V4a2 2 0 00-2-2H7zm3 4a1 1 0 000 2h4a1 1 0 100-2h-4z';
   }
+};
+
+// Get all upstream nodes for a given node (nodes that feed data into this node)
+export const getAllUpstreamNodes = (nodeId: string, data: GraphData): string[] => {
+  const visited = new Set<string>();
+  const upstreamNodes = new Set<string>();
+  
+  const traverseUpstream = (currentNodeId: string) => {
+    if (visited.has(currentNodeId)) return;
+    visited.add(currentNodeId);
+    
+    // Find all links where this node is the target (incoming connections)
+    const incomingLinks = data.links.filter(link => {
+      const targetId = typeof link.target === 'string' ? link.target : (link.target as GraphNode).id;
+      return targetId === currentNodeId;
+    });
+    
+    // For each incoming link, add the source node and traverse it
+    incomingLinks.forEach(link => {
+      const sourceId = typeof link.source === 'string' ? link.source : (link.source as GraphNode).id;
+      
+      if (sourceId !== nodeId) { // Don't include the original node
+        upstreamNodes.add(sourceId);
+        traverseUpstream(sourceId); // Recursively traverse upstream
+      }
+    });
+  };
+  
+  traverseUpstream(nodeId);
+  return Array.from(upstreamNodes);
+};
+
+// Get all downstream nodes for a given node (nodes that receive data from this node)
+export const getAllDownstreamNodes = (nodeId: string, data: GraphData): string[] => {
+  const visited = new Set<string>();
+  const downstreamNodes = new Set<string>();
+  
+  const traverseDownstream = (currentNodeId: string) => {
+    if (visited.has(currentNodeId)) return;
+    visited.add(currentNodeId);
+    
+    // Find all links where this node is the source (outgoing connections)
+    const outgoingLinks = data.links.filter(link => {
+      const sourceId = typeof link.source === 'string' ? link.source : (link.source as GraphNode).id;
+      return sourceId === currentNodeId;
+    });
+    
+    // For each outgoing link, add the target node and traverse it
+    outgoingLinks.forEach(link => {
+      const targetId = typeof link.target === 'string' ? link.target : (link.target as GraphNode).id;
+      
+      if (targetId !== nodeId) { // Don't include the original node
+        downstreamNodes.add(targetId);
+        traverseDownstream(targetId); // Recursively traverse downstream
+      }
+    });
+  };
+  
+  traverseDownstream(nodeId);
+  return Array.from(downstreamNodes);
 };

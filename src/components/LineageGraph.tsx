@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { GraphData, GraphNode, GraphLink } from '../types';
-import { getNodeColor } from '../utils/graphBuilder';
+import { getNodeColor, getAllUpstreamNodes } from '../utils/graphBuilder';
 import { Button } from '@/components/ui/button';
 
 // Helper function to get CSS variable color for D3
@@ -28,6 +28,7 @@ interface LineageGraphProps {
   focusedNodeId?: string;
   width?: number;
   height?: number;
+  connectedLabelsMap?: Map<string, string[]>;
 }
 
 const LineageGraph: React.FC<LineageGraphProps> = ({
@@ -43,7 +44,8 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
   highlightedNodes = new Set(),
   focusedNodeId,
   width = window.innerWidth,
-  height = window.innerHeight - 200
+  height = window.innerHeight - 200,
+  connectedLabelsMap = new Map()
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -269,7 +271,9 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       }, 4000);
     }
 
-    const link = g.append('g')
+    const linkGroup = g.append('g');
+    
+    const link = linkGroup
       .selectAll('line')
       .data(data.links)
       .enter().append('line')
@@ -284,6 +288,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
         }
         return null;
       });
+
 
     // Clear any existing defs to avoid conflicts
     svg.select('defs').remove();
@@ -398,6 +403,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
         .attr('opacity', 0.5);
     }
 
+    // Add node name text
     node.append('text')
       .text(d => d.name.length > 20 ? d.name.substring(0, 20) + '...' : d.name)
       .attr('x', 0)
@@ -406,6 +412,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .attr('font-size', '10px')
       .attr('fill', getCSSColor('--foreground', '#1f2937'))
       .attr('pointer-events', 'none');
+
 
     const tooltip = d3.select('body').append('div')
       .attr('class', 'tooltip')
@@ -420,6 +427,27 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
       .style('color', getCSSColor('--popover-foreground', '#000'));
 
     node.on('mouseover', function(_event, d) {
+      const labelsHtml = d.labels && d.labels.length > 0 
+        ? `<div style="margin-top: 8px;"><strong>Labels:</strong><br/>${d.labels.map(label => `<span style="background: #f3f4f6; padding: 2px 6px; margin: 2px; border-radius: 4px; font-size: 11px; color: #374151;">${label}</span>`).join('')}</div>`
+        : '';
+
+      // Get all upstream nodes that feed data into this node
+      const upstreamNodeIds = getAllUpstreamNodes(d.id, data);
+
+      // Collect labels from all upstream nodes (nodes that feed into this one)
+      const upstreamLabels: string[] = [];
+      upstreamNodeIds.forEach(connectedId => {
+        const nodeLabels = connectedLabelsMap.get(connectedId);
+        if (nodeLabels && nodeLabels.length > 0) {
+          upstreamLabels.push(...nodeLabels);
+        }
+      });
+
+      const uniqueUpstreamLabels = Array.from(new Set(upstreamLabels));
+      const upstreamLabelsHtml = uniqueUpstreamLabels.length > 0
+        ? `<div style="margin-top: 8px;"><strong>Upstream labels:</strong><br/>${uniqueUpstreamLabels.map(label => `<span style="background: #e0f2fe; padding: 2px 6px; margin: 2px; border-radius: 4px; font-size: 11px; color: #0277bd;">${label}</span>`).join('')}</div>`
+        : '';
+
       const tooltipContent = d.nodeType === 'dashboard' 
         ? `
           <strong>${d.name}</strong><br/>
@@ -428,6 +456,8 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
           ${(d as any).owner ? `Owner: ${(d as any).owner}<br/>` : ''}
           ${(d as any).businessArea ? `Business Area: ${(d as any).businessArea}<br/>` : ''}
           ${(d as any).link ? `<a href="${(d as any).link}" target="_blank">View Dashboard</a><br/>` : ''}
+          ${labelsHtml}
+          ${upstreamLabelsHtml}
         `
         : `
           <strong>${d.name}</strong><br/>
@@ -436,7 +466,9 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
           Layer: ${(d as any).layer}<br/>
           Type: ${(d as any).tableType}<br/>
           ${(d as any).isScheduledQuery ? '<em>Scheduled query</em><br/>' : ''}
-          ${(d as any).description ? `Description: ${(d as any).description}` : ''}
+          ${(d as any).description ? `Description: ${(d as any).description}<br/>` : ''}
+          ${labelsHtml}
+          ${upstreamLabelsHtml}
         `;
       
       tooltip.style('visibility', 'visible').html(tooltipContent);
@@ -513,6 +545,7 @@ const LineageGraph: React.FC<LineageGraphProps> = ({
           
           return source.y! + dy * ratio;
         });
+
 
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });

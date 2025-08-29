@@ -47,6 +47,37 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_table_columns_updated_at 
     BEFORE UPDATE ON table_columns 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create node_labels table for storing labels
+CREATE TABLE node_labels (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id UUID NOT NULL,
+  node_id TEXT NOT NULL,
+  node_type TEXT NOT NULL CHECK (node_type IN ('table', 'dashboard')),
+  label TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  -- Constraints
+  UNIQUE(project_id, node_id, label) -- Prevent duplicate labels on same node
+);
+
+-- Create RLS policies for node_labels
+ALTER TABLE node_labels ENABLE ROW LEVEL SECURITY;
+
+-- Allow all operations for now (customize as needed)
+CREATE POLICY "Allow all operations on node_labels" ON node_labels
+  FOR ALL USING (true);
+
+-- Create indexes for performance
+CREATE INDEX idx_node_labels_project_node ON node_labels(project_id, node_id);
+CREATE INDEX idx_node_labels_project_label ON node_labels(project_id, label);
+CREATE INDEX idx_node_labels_node_type ON node_labels(node_type);
+
+-- Create updated_at trigger for node_labels
+CREATE TRIGGER update_node_labels_updated_at 
+    BEFORE UPDATE ON node_labels 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
 
 ## 3. Environment Variables

@@ -6,6 +6,7 @@ export const clearProjectData = async (projectId: string): Promise<void> => {
   if (!supabase) throw new Error('Supabase client not initialized');
   
   // Delete in order due to foreign key constraints
+  await supabase.from('node_labels').delete().eq('project_id', projectId);
   await supabase.from('dashboard_tables').delete().eq('project_id', projectId);
   await supabase.from('lineages').delete().eq('project_id', projectId);
   await supabase.from('dashboards').delete().eq('project_id', projectId);

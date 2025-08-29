@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, X, BarChart3, Layers, Database, Table, Calendar } from 'lucide-react';
+import { Search, Filter, X, BarChart3, Layers, Database, Table, Calendar, Tag } from 'lucide-react';
 import { FilterOptions, LayerType, TableType, ParsedData } from '@/types';
 import { getTablesByDashboard } from '@/utils/graphBuilder';
+import { getProjectUniqueLabels, areNodeLabelsAvailable } from '@/services/nodeLabels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -14,17 +15,20 @@ interface SearchFilterProps {
   filters: FilterOptions;
   onFiltersChange: (filters: FilterOptions) => void;
   onTableHighlight?: (tableIds: Set<string>) => void;
+  activeProjectId?: string;
 }
 
 const SearchFilter: React.FC<SearchFilterProps> = ({
   parsedData,
   filters,
   onFiltersChange,
-  onTableHighlight
+  onTableHighlight,
+  activeProjectId
 }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [availableDatasets, setAvailableDatasets] = useState<string[]>([]);
   const [availableDashboards, setAvailableDashboards] = useState<Array<{id: string, name: string, tableCount: number}>>([]);
+  const [availableLabels, setAvailableLabels] = useState<string[]>([]);
 
   useEffect(() => {
     const datasets = new Set<string>();
@@ -42,6 +46,25 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     
     setAvailableDashboards(dashboards);
   }, [parsedData]);
+
+  // Load available labels from the project
+  useEffect(() => {
+    const loadAvailableLabels = async () => {
+      if (areNodeLabelsAvailable() && activeProjectId) {
+        try {
+          const uniqueLabels = await getProjectUniqueLabels(activeProjectId);
+          setAvailableLabels(uniqueLabels);
+        } catch (error) {
+          console.error('Error loading available labels:', error);
+          setAvailableLabels([]);
+        }
+      } else {
+        setAvailableLabels([]);
+      }
+    };
+
+    loadAvailableLabels();
+  }, [activeProjectId]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFiltersChange({
@@ -114,6 +137,17 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     }
   };
 
+  const handleLabelToggle = (label: string) => {
+    const currentlySelected = filters.selectedLabels || [];
+    const newSelectedLabels = currentlySelected.includes(label)
+      ? currentlySelected.filter(l => l !== label)
+      : [...currentlySelected, label];
+    
+    onFiltersChange({
+      ...filters,
+      selectedLabels: newSelectedLabels
+    });
+  };
 
   const clearFilters = () => {
     onFiltersChange({
@@ -123,6 +157,7 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
       showScheduledOnly: false,
       searchTerm: '',
       selectedDashboards: [],
+      selectedLabels: [],
       focusedTableId: undefined,
       focusedDashboardId: undefined
     });
@@ -143,7 +178,8 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
     filters.tableTypes.length > 0 ||
     filters.showScheduledOnly ||
     filters.searchTerm !== '' ||
-    (filters.selectedDashboards && filters.selectedDashboards.length > 0);
+    (filters.selectedDashboards && filters.selectedDashboards.length > 0) ||
+    (filters.selectedLabels && filters.selectedLabels.length > 0);
 
   const getLayerVariant = (layer: LayerType): "default" | "success" | "info" | "warning" | "destructive" => {
     switch (layer) {
@@ -376,6 +412,34 @@ const SearchFilter: React.FC<SearchFilterProps> = ({
                               </div>
                             </div>
                           </Button>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </FilterSection>
+                )}
+
+                {/* Labels Filter */}
+                {availableLabels.length > 0 && (
+                  <FilterSection
+                    title={`Labels${filters.selectedLabels && filters.selectedLabels.length > 0 ? ` (${filters.selectedLabels.length} selected)` : ''}`}
+                    icon={<Tag className="h-4 w-4 text-primary" />}
+                  >
+                    <ScrollArea className="h-36 rounded-md border border-border/50 p-3 bg-background/50">
+                      <div className="space-y-2">
+                        {availableLabels.map((label, index) => {
+                          const isSelected = filters.selectedLabels?.includes(label) || false;
+                          return (
+                            <Button
+                              key={`label-${label}-${index}`}
+                              variant={isSelected ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => handleLabelToggle(label)}
+                              className="w-full justify-start h-auto p-2 font-semibold hover:shadow-sm transition-all duration-200"
+                            >
+                              <Tag className="h-3 w-3 mr-2 flex-shrink-0" />
+                              <span className="truncate text-left">{label}</span>
+                            </Button>
                           );
                         })}
                       </div>
